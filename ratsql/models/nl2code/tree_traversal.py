@@ -20,7 +20,9 @@ class TreeTraversal:
         @classmethod
         def register_handler(cls, func_type):
             if func_type in cls.handlers:
-                raise RuntimeError(f"{func_type} handler is already registered")
+                raise RuntimeError(
+                    f'{func_type} handler is already registered',
+                )
 
             def inner_func(func):
                 cls.handlers[func_type] = func.__name__
@@ -38,7 +40,7 @@ class TreeTraversal:
         parent_field_name = attr.ib()
 
         def to_str(self):
-            return f"<state: {self.state}, node_type: {self.node_type}, parent_field_name: {self.parent_field_name}>"
+            return f'<state: {self.state}, node_type: {self.node_type}, parent_field_name: {self.parent_field_name}>'
 
     class State(enum.Enum):
         SUM_TYPE_INQUIRE = 0
@@ -61,7 +63,7 @@ class TreeTraversal:
 
         model.state_update.set_dropout_masks(batch_size=1)
         self.recurrent_state = decoder.lstm_init(
-            model._device, None, self.model.recurrent_size, 1
+            model._device, None, self.model.recurrent_size, 1,
         )
         self.prev_action_emb = model.zero_rule_emb
 
@@ -100,7 +102,7 @@ class TreeTraversal:
     def step(self, last_choice, extra_choice_info=None, attention_offset=None):
         while True:
             self.update_using_last_choice(
-                last_choice, extra_choice_info, attention_offset
+                last_choice, extra_choice_info, attention_offset,
             )
 
             handler_name = TreeTraversal.Handler.handlers[self.cur_item.state]
@@ -113,7 +115,7 @@ class TreeTraversal:
                 return choices
 
     def update_using_last_choice(
-            self, last_choice, extra_choice_info, attention_offset
+            self, last_choice, extra_choice_info, attention_offset,
     ):
         if last_choice is None:
             return
@@ -158,7 +160,7 @@ class TreeTraversal:
             self.desc_enc,
         )
         self.cur_item = attr.evolve(
-            self.cur_item, state=TreeTraversal.State.SUM_TYPE_APPLY, parent_h=output
+            self.cur_item, state=TreeTraversal.State.SUM_TYPE_APPLY, parent_h=output,
         )
 
         self.update_prev_action_emb = (
@@ -205,7 +207,7 @@ class TreeTraversal:
             self.desc_enc,
         )
         self.cur_item = attr.evolve(
-            self.cur_item, state=TreeTraversal.State.CHILDREN_APPLY, parent_h=output
+            self.cur_item, state=TreeTraversal.State.CHILDREN_APPLY, parent_h=output,
         )
 
         self.update_prev_action_emb = (
@@ -228,15 +230,15 @@ class TreeTraversal:
                 parent_action_emb=None,
                 parent_h=None,
                 parent_field_name=None,
-            )
+            ),
         )
         for field_info, present in reversed(
                 list(
                     zip(
                         self.model.ast_wrapper.singular_types[node_type].fields,
                         children_presence,
-                    )
-                )
+                    ),
+                ),
         ):
             if not present:
                 continue
@@ -262,7 +264,7 @@ class TreeTraversal:
                 child_state = TreeTraversal.State.GEN_TOKEN
                 child_type = present
             else:
-                raise ValueError(f"Unable to handle field type {field_type}")
+                raise ValueError(f'Unable to handle field type {field_type}')
 
             self.queue = self.queue.append(
                 TreeTraversal.QueueItem(
@@ -272,7 +274,7 @@ class TreeTraversal:
                     parent_action_emb=self.prev_action_emb,
                     parent_h=self.cur_item.parent_h,
                     parent_field_name=field_info.name,
-                )
+                ),
             )
             self.next_item_id += 1
 
@@ -283,7 +285,7 @@ class TreeTraversal:
 
     @Handler.register_handler(State.LIST_LENGTH_INQUIRE)
     def process_list_length_inquire(self, last_choice):
-        list_type = self.cur_item.node_type + "*"
+        list_type = self.cur_item.node_type + '*'
         output, self.recurrent_state, rule_logits = self.model.apply_rule(
             list_type,
             self.recurrent_state,
@@ -293,7 +295,7 @@ class TreeTraversal:
             self.desc_enc,
         )
         self.cur_item = attr.evolve(
-            self.cur_item, state=TreeTraversal.State.LIST_LENGTH_APPLY, parent_h=output
+            self.cur_item, state=TreeTraversal.State.LIST_LENGTH_APPLY, parent_h=output,
         )
 
         self.update_prev_action_emb = (
@@ -306,22 +308,22 @@ class TreeTraversal:
     def process_list_length_apply(self, last_choice):
         list_type, num_children = self.model.preproc.all_rules[last_choice]
         elem_type = self.cur_item.node_type
-        assert list_type == elem_type + "*"
+        assert list_type == elem_type + '*'
 
         child_node_type = elem_type
         if elem_type in self.model.ast_wrapper.sum_types:
             child_state = TreeTraversal.State.SUM_TYPE_INQUIRE
             if self.model.preproc.use_seq_elem_rules:
-                child_node_type = elem_type + "_seq_elem"
+                child_node_type = elem_type + '_seq_elem'
         elif elem_type in self.model.ast_wrapper.product_types:
             child_state = TreeTraversal.State.CHILDREN_INQUIRE
-        elif elem_type == "identifier":
+        elif elem_type == 'identifier':
             child_state = TreeTraversal.State.GEN_TOKEN
-            child_node_type = "str"
+            child_node_type = 'str'
         elif elem_type in self.model.ast_wrapper.primitive_types:
-            raise ValueError("sequential builtin types not supported")
+            raise ValueError('sequential builtin types not supported')
         else:
-            raise ValueError(f"Unable to handle seq field type {elem_type}")
+            raise ValueError(f'Unable to handle seq field type {elem_type}')
 
         for i in range(num_children):
             self.queue = self.queue.append(
@@ -332,7 +334,7 @@ class TreeTraversal:
                     parent_action_emb=self.prev_action_emb,
                     parent_h=self.cur_item.parent_h,
                     parent_field_name=self.cur_item.parent_field_name,
-                )
+                ),
             )
             self.next_item_id += 1
 
@@ -376,14 +378,14 @@ class TreeTraversal:
             self.desc_enc,
         )
         self.cur_item = attr.evolve(
-            self.cur_item, state=TreeTraversal.State.POINTER_APPLY, parent_h=output
+            self.cur_item, state=TreeTraversal.State.POINTER_APPLY, parent_h=output,
         )
 
         self.update_prev_action_emb = (
             TreeTraversal._update_prev_action_emb_pointer
         )
         choices = self.pointer_choice(
-            self.cur_item.node_type, logits, attention_logits
+            self.cur_item.node_type, logits, attention_logits,
         )
         return choices, False
 

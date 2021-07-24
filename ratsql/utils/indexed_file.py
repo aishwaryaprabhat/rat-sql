@@ -14,7 +14,7 @@ def read_index(filename):
     return index
 
 
-class IndexedFileWriter(object):
+class IndexedFileWriter:
     def __init__(self, path):
         self.f = open(path, 'wb')
         self.index_f = open(path + '.index', 'wb')
@@ -29,15 +29,17 @@ class IndexedFileWriter(object):
         self.index_f.close()
 
 
-class IndexedFileReader(object):
+class IndexedFileReader:
     def __init__(self, path):
         self.f = open(path, 'rb')
 
         self.index = read_index(path + '.index')
         self.lengths = [
             end - start
-            for start, end in zip([0] + self.index, self.index +
-                                  [os.path.getsize(path)])
+            for start, end in zip(
+                [0] + self.index, self.index
+                + [os.path.getsize(path)],
+            )
         ]
 
     def __len__(self):

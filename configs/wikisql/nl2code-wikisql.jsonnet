@@ -1,6 +1,6 @@
 local _base = import '../spider/nl2code-align.jsonnet';
 
-function(args) _base(args + { 
+function(args) _base(args + {
     end_lr: 0,
     setting: 'basic',
     loss_type: 'softmax',
@@ -16,21 +16,21 @@ function(args) _base(args + {
 
     data: {
         train: {
-            name: 'wikisql', 
+            name: 'wikisql',
             paths: [args.data_path + 'train.jsonl'],
             tables_paths: [args.data_path + 'train.tables.jsonl'],
             db_path: args.data_path + 'train.db',
 #            limit: 100,
         },
         val: {
-            name: 'wikisql', 
+            name: 'wikisql',
             paths: [args.data_path + 'dev.jsonl'],
             tables_paths: [args.data_path + 'dev.tables.jsonl'],
             db_path: args.data_path + 'dev.db',
 #            limit: 100,
         },
         test: {
-            name: 'wikisql', 
+            name: 'wikisql',
             paths: [args.data_path + 'test.jsonl'],
             tables_paths: [args.data_path + 'test.tables.jsonl'],
             db_path: args.data_path + 'test.db',

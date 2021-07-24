@@ -18,28 +18,35 @@
 #   'union': None/sql
 # }
 ################################
-
 import argparse
 import json
 import os
 import sqlite3
 
-from ratsql.datasets.spider_lib.process_sql import get_schema, Schema, get_sql
+from ratsql.datasets.spider_lib.process_sql import get_schema
+from ratsql.datasets.spider_lib.process_sql import get_sql
+from ratsql.datasets.spider_lib.process_sql import Schema
 
 # Flag to disable value evaluation
 DISABLE_VALUE = True
 # Flag to disable distinct in select evaluation
 DISABLE_DISTINCT = True
 
-CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
+CLAUSE_KEYWORDS = (
+    'select', 'from', 'where', 'group',
+    'order', 'limit', 'intersect', 'union', 'except',
+)
 JOIN_KEYWORDS = ('join', 'on', 'as')
 
-WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
-UNIT_OPS = ('none', '-', '+', "*", '/')
+WHERE_OPS = (
+    'not', 'between', '=', '>', '<', '>=',
+    '<=', '!=', 'in', 'like', 'is', 'exists',
+)
+UNIT_OPS = ('none', '-', '+', '*', '/')
 AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
 TABLE_TYPE = {
-    'sql': "sql",
-    'table_unit': "table_unit",
+    'sql': 'sql',
+    'table_unit': 'table_unit',
 }
 
 COND_OPS = ('and', 'or')
@@ -47,13 +54,15 @@ SQL_OPS = ('intersect', 'union', 'except')
 ORDER_OPS = ('desc', 'asc')
 
 HARDNESS = {
-    "component1": ('where', 'group', 'order', 'limit', 'join', 'or', 'like'),
-    "component2": ('except', 'union', 'intersect')
+    'component1': ('where', 'group', 'order', 'limit', 'join', 'or', 'like'),
+    'component2': ('except', 'union', 'intersect'),
 }
 
 LEVELS = ['easy', 'medium', 'hard', 'extra', 'all']
-PARTIAL_TYPES = ['select', 'select(no AGG)', 'where', 'where(no OP)', 'group(no Having)',
-                 'group', 'order', 'and/or', 'IUEN', 'keywords']
+PARTIAL_TYPES = [
+    'select', 'select(no AGG)', 'where', 'where(no OP)', 'group(no Having)',
+    'group', 'order', 'and/or', 'IUEN', 'keywords',
+]
 
 
 def condition_has_or(conds):
@@ -154,8 +163,16 @@ def eval_group(pred, label):
     pred_total = len(pred_cols)
     label_total = len(label_cols)
     cnt = 0
-    pred_cols = [pred.split(".")[1] if "." in pred else pred for pred in pred_cols]
-    label_cols = [label.split(".")[1] if "." in label else label for label in label_cols]
+    pred_cols = [
+        pred.split(
+            '.',
+        )[1] if '.' in pred else pred for pred in pred_cols
+    ]
+    label_cols = [
+        label.split(
+            '.',
+        )[1] if '.' in label else label for label in label_cols
+    ]
     for col in pred_cols:
         if col in label_cols:
             cnt += 1
@@ -188,7 +205,8 @@ def eval_order(pred, label):
         label_total = 1
     if len(label['orderBy']) > 0 and pred['orderBy'] == label['orderBy'] and \
             ((pred['limit'] is None and label['limit'] is None) or (
-                    pred['limit'] is not None and label['limit'] is not None)):
+                pred['limit'] is not None and label['limit'] is not None
+            )):
         cnt = 1
     return label_total, pred_total, cnt
 
@@ -269,7 +287,8 @@ def get_keywords(sql):
     if len([token for token in ao if token == 'or']) > 0:
         res.add('or')
 
-    cond_units = sql['from']['conds'][::2] + sql['where'][::2] + sql['having'][::2]
+    cond_units = sql['from']['conds'][::2] + \
+        sql['where'][::2] + sql['having'][::2]
     # not keyword
     if len([cond_unit for cond_unit in cond_units if cond_unit[0]]) > 0:
         res.add('not')
@@ -317,8 +336,12 @@ def count_component1(sql):
 
     ao = sql['from']['conds'][1::2] + sql['where'][1::2] + sql['having'][1::2]
     count += len([token for token in ao if token == 'or'])
-    cond_units = sql['from']['conds'][::2] + sql['where'][::2] + sql['having'][::2]
-    count += len([cond_unit for cond_unit in cond_units if cond_unit[1] == WHERE_OPS.index('like')])
+    cond_units = sql['from']['conds'][::2] + \
+        sql['where'][::2] + sql['having'][::2]
+    count += len([
+        cond_unit for cond_unit in cond_units if cond_unit[1]
+        == WHERE_OPS.index('like')
+    ])
 
     return count
 
@@ -335,8 +358,8 @@ def count_others(sql):
     agg_count += count_agg(sql['where'][::2])
     agg_count += count_agg(sql['groupBy'])
     if len(sql['orderBy']) > 0:
-        agg_count += count_agg([unit[1] for unit in sql['orderBy'][1] if unit[1]] +
-                               [unit[2] for unit in sql['orderBy'][1] if unit[2]])
+        agg_count += count_agg([unit[1] for unit in sql['orderBy'][1] if unit[1]]
+                               + [unit[2] for unit in sql['orderBy'][1] if unit[2]])
     agg_count += count_agg(sql['having'])
     if agg_count > 1:
         count += 1
@@ -375,7 +398,10 @@ class Evaluator:
             level: {
                 'count': 0,
                 'partial': {
-                    type_: {'acc': 0., 'rec': 0., 'f1': 0., 'acc_count': 0, 'rec_count': 0}
+                    type_: {
+                        'acc': 0., 'rec': 0., 'f1': 0.,
+                        'acc_count': 0, 'rec_count': 0,
+                    }
                     for type_ in PARTIAL_TYPES
                 },
                 'exact': 0.,
@@ -390,16 +416,16 @@ class Evaluator:
         count_others_ = count_others(sql)
 
         if count_comp1_ <= 1 and count_others_ == 0 and count_comp2_ == 0:
-            return "easy"
+            return 'easy'
         elif (count_others_ <= 2 and count_comp1_ <= 1 and count_comp2_ == 0) or \
                 (count_comp1_ <= 2 and count_others_ < 2 and count_comp2_ == 0):
-            return "medium"
+            return 'medium'
         elif (count_others_ > 2 and count_comp1_ <= 2 and count_comp2_ == 0) or \
                 (2 < count_comp1_ <= 3 and count_others_ <= 2 and count_comp2_ == 0) or \
                 (count_comp1_ <= 1 and count_others_ == 0 and count_comp2_ <= 1):
-            return "hard"
+            return 'hard'
         else:
-            return "extra"
+            return 'extra'
 
     @classmethod
     def eval_exact_match(cls, pred, label, partial_scores):
@@ -418,40 +444,69 @@ class Evaluator:
 
         label_total, pred_total, cnt, cnt_wo_agg = eval_sel(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['select'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['select'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
         acc, rec, f1 = get_scores(cnt_wo_agg, pred_total, label_total)
-        res['select(no AGG)'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['select(no AGG)'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt, cnt_wo_agg = eval_where(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['where'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['where'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
         acc, rec, f1 = get_scores(cnt_wo_agg, pred_total, label_total)
-        res['where(no OP)'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['where(no OP)'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt = eval_group(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['group(no Having)'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total,
-                                   'pred_total': pred_total}
+        res['group(no Having)'] = {
+            'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total,
+            'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt = eval_having(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['group'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['group'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt = eval_order(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['order'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['order'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt = eval_and_or(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['and/or'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['and/or'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt = eval_IUEN(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['IUEN'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['IUEN'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         label_total, pred_total, cnt = eval_keywords(pred, label)
         acc, rec, f1 = get_scores(cnt, pred_total, label_total)
-        res['keywords'] = {'acc': acc, 'rec': rec, 'f1': f1, 'label_total': label_total, 'pred_total': pred_total}
+        res['keywords'] = {
+            'acc': acc, 'rec': rec, 'f1': f1,
+            'label_total': label_total, 'pred_total': pred_total,
+        }
 
         return res
 
@@ -468,22 +523,22 @@ class Evaluator:
         except:
             # If p_sql is not valid, then we will use an empty sql to evaluate with the correct sql
             p_sql = {
-                "except": None,
-                "from": {
-                    "conds": [],
-                    "table_units": []
+                'except': None,
+                'from': {
+                    'conds': [],
+                    'table_units': [],
                 },
-                "groupBy": [],
-                "having": [],
-                "intersect": None,
-                "limit": None,
-                "orderBy": [],
-                "select": [
+                'groupBy': [],
+                'having': [],
+                'intersect': None,
+                'limit': None,
+                'orderBy': [],
+                'select': [
                     False,
-                    []
+                    [],
                 ],
-                "union": None,
-                "where": []
+                'union': None,
+                'where': [],
             }
 
             # TODO fix
@@ -491,17 +546,23 @@ class Evaluator:
 
         # rebuild sql for value evaluation
         kmap = self.kmaps[db_name]
-        g_valid_col_units = build_valid_col_units(g_sql['from']['table_units'], schema)
+        g_valid_col_units = build_valid_col_units(
+            g_sql['from']['table_units'], schema,
+        )
         g_sql = rebuild_sql_val(g_sql)
         g_sql = rebuild_sql_col(g_valid_col_units, g_sql, kmap)
-        p_valid_col_units = build_valid_col_units(p_sql['from']['table_units'], schema)
+        p_valid_col_units = build_valid_col_units(
+            p_sql['from']['table_units'], schema,
+        )
         p_sql = rebuild_sql_val(p_sql)
         p_sql = rebuild_sql_col(p_valid_col_units, p_sql, kmap)
 
-        if self.etype in ["all", "exec"]:
-            self.scores[hardness]['exec'] += eval_exec_match(self.db_paths[db_name], predicted, gold, p_sql, g_sql)
+        if self.etype in ['all', 'exec']:
+            self.scores[hardness]['exec'] += eval_exec_match(
+                self.db_paths[db_name], predicted, gold, p_sql, g_sql,
+            )
 
-        if self.etype in ["all", "match"]:
+        if self.etype in ['all', 'match']:
             partial_scores = self.eval_partial_match(p_sql, g_sql)
             exact_score = self.eval_exact_match(p_sql, g_sql, partial_scores)
             self.scores[hardness]['exact'] += exact_score
@@ -528,7 +589,7 @@ class Evaluator:
             'predicted_parse_error': parse_error,
             'hardness': hardness,
             'exact': exact_score,
-            'partial': partial_scores
+            'partial': partial_scores,
         }
 
     def finalize(self):
@@ -536,28 +597,30 @@ class Evaluator:
         for level in LEVELS:
             if scores[level]['count'] == 0:
                 continue
-            if self.etype in ["all", "exec"]:
+            if self.etype in ['all', 'exec']:
                 scores[level]['exec'] /= scores[level]['count']
 
-            if self.etype in ["all", "match"]:
+            if self.etype in ['all', 'match']:
                 scores[level]['exact'] /= scores[level]['count']
                 for type_ in PARTIAL_TYPES:
                     if scores[level]['partial'][type_]['acc_count'] == 0:
                         scores[level]['partial'][type_]['acc'] = 0
                     else:
                         scores[level]['partial'][type_]['acc'] = scores[level]['partial'][type_]['acc'] / \
-                                                                 scores[level]['partial'][type_]['acc_count'] * 1.0
+                            scores[level]['partial'][type_]['acc_count'] * 1.0
                     if scores[level]['partial'][type_]['rec_count'] == 0:
                         scores[level]['partial'][type_]['rec'] = 0
                     else:
                         scores[level]['partial'][type_]['rec'] = scores[level]['partial'][type_]['rec'] / \
-                                                                 scores[level]['partial'][type_]['rec_count'] * 1.0
+                            scores[level]['partial'][type_]['rec_count'] * 1.0
                     if scores[level]['partial'][type_]['acc'] == 0 and scores[level]['partial'][type_]['rec'] == 0:
                         scores[level]['partial'][type_]['f1'] = 1
                     else:
                         scores[level]['partial'][type_]['f1'] = \
                             2.0 * scores[level]['partial'][type_]['acc'] * scores[level]['partial'][type_]['rec'] / (
-                                    scores[level]['partial'][type_]['rec'] + scores[level]['partial'][type_]['acc'])
+                            scores[level]['partial'][type_]['rec']
+                                + scores[level]['partial'][type_]['acc']
+                            )
 
 
 def isValidSQL(sql, db):
@@ -572,44 +635,81 @@ def isValidSQL(sql, db):
 
 def print_scores(scores, etype):
     LEVELS = ['easy', 'medium', 'hard', 'extra', 'all']
-    PARTIAL_TYPES = ['select', 'select(no AGG)', 'where', 'where(no OP)', 'group(no Having)',
-                     'group', 'order', 'and/or', 'IUEN', 'keywords']
+    PARTIAL_TYPES = [
+        'select', 'select(no AGG)', 'where', 'where(no OP)', 'group(no Having)',
+        'group', 'order', 'and/or', 'IUEN', 'keywords',
+    ]
 
-    print("{:20} {:20} {:20} {:20} {:20} {:20}".format("", *LEVELS))
+    print('{:20} {:20} {:20} {:20} {:20} {:20}'.format('', *LEVELS))
     counts = [scores[level]['count'] for level in LEVELS]
-    print("{:20} {:<20d} {:<20d} {:<20d} {:<20d} {:<20d}".format("count", *counts))
+    print('{:20} {:<20d} {:<20d} {:<20d} {:<20d} {:<20d}'.format('count', *counts))
 
-    if etype in ["all", "exec"]:
+    if etype in ['all', 'exec']:
         print('=====================   EXECUTION ACCURACY     =====================')
         this_scores = [scores[level]['exec'] for level in LEVELS]
-        print("{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}".format("execution", *this_scores))
+        print(
+            '{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}'.format(
+                'execution', *this_scores,
+            ),
+        )
 
-    if etype in ["all", "match"]:
+    if etype in ['all', 'match']:
         print('\n====================== EXACT MATCHING ACCURACY =====================')
         exact_scores = [scores[level]['exact'] for level in LEVELS]
-        print("{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}".format("exact match", *exact_scores))
+        print(
+            '{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}'.format(
+                'exact match', *exact_scores,
+            ),
+        )
         print('\n---------------------PARTIAL MATCHING ACCURACY----------------------')
         for type_ in PARTIAL_TYPES:
-            this_scores = [scores[level]['partial'][type_]['acc'] for level in LEVELS]
-            print("{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}".format(type_, *this_scores))
+            this_scores = [
+                scores[level]['partial'][type_]['acc']
+                for level in LEVELS
+            ]
+            print(
+                '{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}'.format(
+                    type_, *this_scores,
+                ),
+            )
 
         print('---------------------- PARTIAL MATCHING RECALL ----------------------')
         for type_ in PARTIAL_TYPES:
-            this_scores = [scores[level]['partial'][type_]['rec'] for level in LEVELS]
-            print("{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}".format(type_, *this_scores))
+            this_scores = [
+                scores[level]['partial'][type_]['rec']
+                for level in LEVELS
+            ]
+            print(
+                '{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}'.format(
+                    type_, *this_scores,
+                ),
+            )
 
         print('---------------------- PARTIAL MATCHING F1 --------------------------')
         for type_ in PARTIAL_TYPES:
-            this_scores = [scores[level]['partial'][type_]['f1'] for level in LEVELS]
-            print("{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}".format(type_, *this_scores))
+            this_scores = [
+                scores[level]['partial'][type_]['f1']
+                for level in LEVELS
+            ]
+            print(
+                '{:20} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f} {:<20.3f}'.format(
+                    type_, *this_scores,
+                ),
+            )
 
 
 def evaluate(gold, predict, db_dir, etype, kmaps):
     with open(gold) as f:
-        glist = [l.strip().split('\t') for l in f.readlines() if len(l.strip()) > 0]
+        glist = [
+            l.strip().split('\t')
+            for l in f.readlines() if len(l.strip()) > 0
+        ]
 
     with open(predict) as f:
-        plist = [l.strip().split('\t') for l in f.readlines() if len(l.strip()) > 0]
+        plist = [
+            l.strip().split('\t')
+            for l in f.readlines() if len(l.strip()) > 0
+        ]
     # plist = [("select max(Share),min(Share) from performance where Type != 'terminal'", "orchestra")]
     # glist = [("SELECT max(SHARE) ,  min(SHARE) FROM performance WHERE TYPE != 'Live final'", "orchestra")]
     evaluator = Evaluator(db_dir, kmaps, etype)
@@ -646,7 +746,9 @@ def eval_exec_match(db, p_str, g_str, pred, gold):
     def res_map(res, val_units):
         rmap = {}
         for idx, val_unit in enumerate(val_units):
-            key = tuple(val_unit[1]) if not val_unit[2] else (val_unit[0], tuple(val_unit[1]), tuple(val_unit[2]))
+            key = tuple(val_unit[1]) if not val_unit[2] else (
+                val_unit[0], tuple(val_unit[1]), tuple(val_unit[2]),
+            )
             rmap[key] = [r[idx] for r in res]
         return rmap
 
@@ -701,7 +803,10 @@ def rebuild_sql_val(sql):
 
 # Rebuild SQL functions for foreign key evaluation
 def build_valid_col_units(table_units, schema):
-    col_ids = [table_unit[1] for table_unit in table_units if table_unit[0] == TABLE_TYPE['table_unit']]
+    col_ids = [
+        table_unit[1]
+        for table_unit in table_units if table_unit[0] == TABLE_TYPE['table_unit']
+    ]
     prefixs = [col_id[:-2] for col_id in col_ids]
     valid_col_units = []
     for value in list(schema.idMap.values()):
@@ -738,7 +843,9 @@ def rebuild_table_unit_col(valid_col_units, table_unit, kmap):
 
     table_type, col_unit_or_sql = table_unit
     if isinstance(col_unit_or_sql, tuple):
-        col_unit_or_sql = rebuild_col_unit_col(valid_col_units, col_unit_or_sql, kmap)
+        col_unit_or_sql = rebuild_col_unit_col(
+            valid_col_units, col_unit_or_sql, kmap,
+        )
     return table_type, col_unit_or_sql
 
 
@@ -754,7 +861,9 @@ def rebuild_cond_unit_col(valid_col_units, cond_unit, kmap):
 def rebuild_condition_col(valid_col_units, condition, kmap):
     for idx in range(len(condition)):
         if idx % 2 == 0:
-            condition[idx] = rebuild_cond_unit_col(valid_col_units, condition[idx], kmap)
+            condition[idx] = rebuild_cond_unit_col(
+                valid_col_units, condition[idx], kmap,
+            )
     return condition
 
 
@@ -765,7 +874,11 @@ def rebuild_select_col(valid_col_units, sel, kmap):
     new_list = []
     for it in _list:
         agg_id, val_unit = it
-        new_list.append((agg_id, rebuild_val_unit_col(valid_col_units, val_unit, kmap)))
+        new_list.append((
+            agg_id, rebuild_val_unit_col(
+                valid_col_units, val_unit, kmap,
+            ),
+        ))
     if DISABLE_DISTINCT:
         distinct = None
     return distinct, new_list
@@ -775,9 +888,13 @@ def rebuild_from_col(valid_col_units, from_, kmap):
     if from_ is None:
         return from_
 
-    from_['table_units'] = [rebuild_table_unit_col(valid_col_units, table_unit, kmap) for table_unit in
-                            from_['table_units']]
-    from_['conds'] = rebuild_condition_col(valid_col_units, from_['conds'], kmap)
+    from_['table_units'] = [
+        rebuild_table_unit_col(valid_col_units, table_unit, kmap) for table_unit in
+        from_['table_units']
+    ]
+    from_['conds'] = rebuild_condition_col(
+        valid_col_units, from_['conds'], kmap,
+    )
     return from_
 
 
@@ -793,7 +910,11 @@ def rebuild_order_by_col(valid_col_units, order_by, kmap):
         return order_by
 
     direction, val_units = order_by
-    new_val_units = [rebuild_val_unit_col(valid_col_units, val_unit, kmap) for val_unit in val_units]
+    new_val_units = [
+        rebuild_val_unit_col(
+            valid_col_units, val_unit, kmap,
+        ) for val_unit in val_units
+    ]
     return direction, new_val_units
 
 
@@ -804,8 +925,12 @@ def rebuild_sql_col(valid_col_units, sql, kmap):
     sql['select'] = rebuild_select_col(valid_col_units, sql['select'], kmap)
     sql['from'] = rebuild_from_col(valid_col_units, sql['from'], kmap)
     sql['where'] = rebuild_condition_col(valid_col_units, sql['where'], kmap)
-    sql['groupBy'] = rebuild_group_by_col(valid_col_units, sql['groupBy'], kmap)
-    sql['orderBy'] = rebuild_order_by_col(valid_col_units, sql['orderBy'], kmap)
+    sql['groupBy'] = rebuild_group_by_col(
+        valid_col_units, sql['groupBy'], kmap,
+    )
+    sql['orderBy'] = rebuild_order_by_col(
+        valid_col_units, sql['orderBy'], kmap,
+    )
     sql['having'] = rebuild_condition_col(valid_col_units, sql['having'], kmap)
     sql['intersect'] = rebuild_sql_col(valid_col_units, sql['intersect'], kmap)
     sql['except'] = rebuild_sql_col(valid_col_units, sql['except'], kmap)
@@ -815,8 +940,8 @@ def rebuild_sql_col(valid_col_units, sql, kmap):
 
 
 def build_foreign_key_map(entry):
-    cols_orig = entry["column_names_original"]
-    tables_orig = entry["table_names_original"]
+    cols_orig = entry['column_names_original']
+    tables_orig = entry['table_names_original']
 
     # rebuild cols corresponding to idmap in Schema
     cols = []
@@ -824,9 +949,9 @@ def build_foreign_key_map(entry):
         if col_orig[0] >= 0:
             t = tables_orig[col_orig[0]]
             c = col_orig[1]
-            cols.append("__" + t.lower() + "." + c.lower() + "__")
+            cols.append('__' + t.lower() + '.' + c.lower() + '__')
         else:
-            cols.append("__all__")
+            cols.append('__all__')
 
     def keyset_in_list(k1, k2, k_list):
         for k_set in k_list:
@@ -837,7 +962,7 @@ def build_foreign_key_map(entry):
         return new_k_set
 
     foreign_key_list = []
-    foreign_keys = entry["foreign_keys"]
+    foreign_keys = entry['foreign_keys']
     for fkey in foreign_keys:
         key1, key2 = fkey
         key_set = keyset_in_list(key1, key2, foreign_key_list)
@@ -863,7 +988,7 @@ def build_foreign_key_map_from_json(table):
     return tables
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gold', dest='gold', type=str)
     parser.add_argument('--pred', dest='pred', type=str)
@@ -879,7 +1004,7 @@ if __name__ == "__main__":
     table = args.table
     etype = args.etype
 
-    assert etype in ["all", "exec", "match"], "Unknown evaluation method"
+    assert etype in ['all', 'exec', 'match'], 'Unknown evaluation method'
 
     kmaps = build_foreign_key_map_from_json(table)
 

@@ -14,7 +14,7 @@ from ratsql.utils import registry
 
 
 def bimap(first, second):
-    return {f: s for f, s in  zip(first, second)}, {s: f for f, s in zip(first, second)}
+    return {f: s for f, s in zip(first, second)}, {s: f for f, s in zip(first, second)}
 
 
 def filter_nones(d):
@@ -27,15 +27,20 @@ class WikiSqlLanguage:
     root_type = 'select'
 
     def __init__(self):
-        custom_primitive_type_checkers = {'column': lambda x: isinstance(x, int)}
+        custom_primitive_type_checkers = {
+            'column': lambda x: isinstance(x, int),
+        }
         self.pointers = {'column'}
 
         self.ast_wrapper = ast_util.ASTWrapper(
             asdl.parse(
                 os.path.join(
                     os.path.dirname(os.path.abspath(__file__)),
-                    'WikiSQL.asdl')),
-            custom_primitive_type_checkers=custom_primitive_type_checkers)
+                    'WikiSQL.asdl',
+                ),
+            ),
+            custom_primitive_type_checkers=custom_primitive_type_checkers,
+        )
 
     def parse(self, code, section):
         return self.parse_select(code)
@@ -67,7 +72,7 @@ class WikiSqlLanguage:
             '_type': 'select',
             'agg': {'_type': self.AGG_TYPES_F[select['agg']]},
             'col': select['sel'],
-            'conds': [self.parse_cond(c) for c in select['conds']]
+            'conds': [self.parse_cond(c) for c in select['conds']],
         })
 
     def parse_cond(self, cond):
@@ -78,7 +83,7 @@ class WikiSqlLanguage:
             'col': column_index,
             # - for exact match, str(value).lower() is applied first before comparing
             # - for execution, the value is inserted into a string anyways
-            'value': str(value).lower()
+            'value': str(value).lower(),
         }
 
     #
@@ -89,7 +94,7 @@ class WikiSqlLanguage:
         return {
             'agg': self.AGG_TYPES_B[select['agg']['_type']],
             'sel': select['col'],
-            'conds': [self.unparse_cond(c) for c in select.get('conds', [])]
+            'conds': [self.unparse_cond(c) for c in select.get('conds', [])],
         }
 
     def unparse_cond(self, cond):
@@ -101,8 +106,10 @@ class WikiSqlLanguage:
 
     AGG_TYPES_F, AGG_TYPES_B = bimap(
         range(6),
-        ('NoAgg', 'Max', 'Min', 'Count', 'Sum', 'Avg'))
+        ('NoAgg', 'Max', 'Min', 'Count', 'Sum', 'Avg'),
+    )
 
     CMP_TYPES_F, CMP_TYPES_B = bimap(
         range(4),
-        ('Equal', 'GreaterThan', 'LessThan', 'Other'))
+        ('Equal', 'GreaterThan', 'LessThan', 'Other'),
+    )

@@ -1,5 +1,6 @@
-import attr
 import math
+
+import attr
 import torch
 import transformers
 
@@ -26,9 +27,11 @@ class WarmupPolynomialLRScheduler:
             new_lr = self.start_lr * warmup_frac_done
         else:
             new_lr = (
-                    (self.start_lr - self.end_lr) * (
-                        1 - (current_step - self.num_warmup_steps) / self.decay_steps) ** self.power
-                    + self.end_lr)
+                (self.start_lr - self.end_lr) * (
+                    1 - (current_step - self.num_warmup_steps) / self.decay_steps
+                ) ** self.power
+                + self.end_lr
+            )
 
         for param_group in self.param_groups:
             param_group['lr'] = new_lr
@@ -50,9 +53,11 @@ class WarmupPolynomialLRSchedulerGroup(WarmupPolynomialLRScheduler):
                 new_lr = start_lr * warmup_frac_done
             else:
                 new_lr = (
-                        (start_lr - self.end_lr) * (
-                            1 - (current_step - self.num_warmup_steps) / self.decay_steps) ** self.power
-                        + self.end_lr)
+                    (start_lr - self.end_lr) * (
+                        1 - (current_step - self.num_warmup_steps) / self.decay_steps
+                    ) ** self.power
+                    + self.end_lr
+                )
 
             param_group['lr'] = new_lr
 
@@ -72,9 +77,16 @@ class WarmupCosineLRScheduler:
             new_lr = self.start_lr * warmup_frac_done
         else:
             new_lr = (
-                    (self.start_lr - self.end_lr) * 0.5 * (
-                        1 + math.cos(math.pi * (current_step - self.num_warmup_steps) / self.decay_steps))
-                    + self.end_lr)
+                (self.start_lr - self.end_lr) * 0.5 * (
+                    1 + math.cos(
+                        math.pi * (
+                            current_step
+                            - self.num_warmup_steps
+                        ) / self.decay_steps,
+                    )
+                )
+                + self.end_lr
+            )
 
         for param_group in self.param_groups:
             param_group['lr'] = new_lr
@@ -96,12 +108,16 @@ class BertAdamW(transformers.AdamW):
     """
 
     def __init__(self, non_bert_params, bert_params, lr=1e-3, bert_lr=2e-5, **kwargs):
-        self.bert_param_group = {"params": bert_params, "lr": bert_lr, "weight_decay": 0}
-        self.non_bert_param_group = {"params": non_bert_params}
+        self.bert_param_group = {
+            'params': bert_params,
+            'lr': bert_lr, 'weight_decay': 0,
+        }
+        self.non_bert_param_group = {'params': non_bert_params}
 
         params = [self.non_bert_param_group, self.bert_param_group]
-        if "name" in kwargs: del kwargs["name"]  # TODO: fix this
-        super(BertAdamW, self).__init__(params, lr=lr, **kwargs)
+        if 'name' in kwargs:
+            del kwargs['name']  # TODO: fix this
+        super().__init__(params, lr=lr, **kwargs)
 
 
 @registry.register('lr_scheduler', 'bert_warmup_polynomial_group')
@@ -124,8 +140,10 @@ class BertWarmupPolynomialLRSchedulerGroup(WarmupPolynomialLRScheduler):
                     new_lr = 0
             else:
                 new_lr = (
-                        (start_lr - self.end_lr) * (
-                            1 - (current_step - self.num_warmup_steps) / self.decay_steps) ** self.power
-                        + self.end_lr)
+                    (start_lr - self.end_lr) * (
+                        1 - (current_step - self.num_warmup_steps) / self.decay_steps
+                    ) ** self.power
+                    + self.end_lr
+                )
 
             param_group['lr'] = new_lr

@@ -1,13 +1,12 @@
-import collections
 import collections.abc
 import json
 import operator
 
 
-class Sentinel(object):
+class Sentinel:
     '''Used to represent special values like UNK.'''
     # pylint: disable=too-few-public-methods
-    __slots__ = ('name', )
+    __slots__ = ('name',)
 
     def __init__(self, name):
         # type: (str) -> None
@@ -80,7 +79,12 @@ class Vocab(collections.abc.Set):
 
     def save(self, out_path):
         with open(out_path, 'w') as f:
-            json.dump([self.id_to_elem[i] for i in range(len(self.id_to_elem))],  f)
+            json.dump(
+                [
+                    self.id_to_elem[i]
+                    for i in range(len(self.id_to_elem))
+                ], f,
+            )
 
 
 class VocabBuilder:
@@ -102,13 +106,14 @@ class VocabBuilder:
                     break
 
         return Vocab(
-                    (word for word, freq in sorted(eligible_words_and_freqs)), 
-                    *args, **kwargs)
-    
+                    (word for word, freq in sorted(eligible_words_and_freqs)),
+            *args, **kwargs,
+        )
+
     def save(self, path):
-        with open(path, "w") as f:
+        with open(path, 'w') as f:
             json.dump(self.word_freq, f)
-    
+
     def load(self, path):
-        with open(path, "r") as f:
+        with open(path) as f:
             self.word_freq = collections.Counter(json.load(f))

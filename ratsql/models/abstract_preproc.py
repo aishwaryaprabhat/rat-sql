@@ -1,5 +1,6 @@
 import abc
 
+
 class AbstractPreproc(metaclass=abc.ABCMeta):
     '''Used for preprocessing data according to the model's liking.
 
@@ -7,17 +8,17 @@ class AbstractPreproc(metaclass=abc.ABCMeta):
     - Constructing a vocabulary from the training data
     - Transforming the items in some way, such as
         - Parsing the AST
-        - 
+        -
     - Loading and providing the pre-processed data to the model
 
     TODO:
     - Allow transforming items in a streaming fashion without loading all of them into memory first
     '''
-    
+
     @abc.abstractmethod
     def validate_item(self, item, section):
         '''Checks whether item can be successfully preprocessed.
-        
+
         Returns a boolean and an arbitrary object.'''
         pass
 

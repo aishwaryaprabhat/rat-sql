@@ -25,6 +25,7 @@ class RandomState:
 
 class RandomContext:
     '''Save and restore state of PyTorch, NumPy, Python RNGs.'''
+
     def __init__(self, seed=None):
         outside_state = RandomState()
 
@@ -40,7 +41,7 @@ class RandomContext:
         outside_state.restore()
 
         self._active = False
-    
+
     def __enter__(self):
         if self._active:
             raise Exception('RandomContext can be active only once')

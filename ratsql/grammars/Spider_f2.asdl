@@ -96,7 +96,7 @@ module Spider
       sql? except,
       sql? union,
     )
-    
+
     --   'select': (isDistinct(bool), [(agg_id, val_unit), (agg_id, val_unit), ...])
     select = (singleton is_distinct, agg* aggs)
     agg = (agg_type agg_id, val_unit val_unit)

@@ -14,11 +14,16 @@ def argsort(items, key=lambda x: x, reverse=False):
     # sort_to_orig: tuple of integers, satisfies the following:
     #   tuple(sorted_items[i] for i in sort_to_orig) == items
     #   sorted_items[sort_to_orig[i]] == items[i]
-    orig_to_sort, sorted_items = zip(*sorted(
-        enumerate(items), key=lambda x: key(x[1]), reverse=reverse))
+    orig_to_sort, sorted_items = zip(
+        *sorted(
+            enumerate(items), key=lambda x: key(x[1]), reverse=reverse,
+        ),
+    )
     sort_to_orig = tuple(
         x[0] for x in sorted(
-            enumerate(orig_to_sort), key=operator.itemgetter(1)))
+            enumerate(orig_to_sort), key=operator.itemgetter(1),
+        )
+    )
     return sorted_items, sort_to_orig, orig_to_sort
 
 
@@ -57,8 +62,10 @@ def batch_bounds_for_packing(lengths):
 
 
 def _make_packed_sequence(data, batch_sizes):
-    return torch.nn.utils.rnn.PackedSequence(data,
-        torch.LongTensor(batch_sizes))
+    return torch.nn.utils.rnn.PackedSequence(
+        data,
+        torch.LongTensor(batch_sizes),
+    )
 
 
 @attr.s(frozen=True)
@@ -67,27 +74,35 @@ class PackedSequencePlus:
     lengths = attr.ib()
     sort_to_orig = attr.ib(converter=np.array)
     orig_to_sort = attr.ib(converter=np.array)
+
     @lengths.validator
     def descending(self, attribute, value):
         for x, y in zip(value, value[1:]):
             if not x >= y:
                 raise ValueError(f'Lengths are not descending: {value}')
-    
+
     def __attrs_post_init__(self):
-        self.__dict__['cum_batch_sizes'] = np.cumsum([0] + self.ps.batch_sizes[:-1].tolist()).astype(np.int_)
+        self.__dict__['cum_batch_sizes'] = np.cumsum(
+            [0] + self.ps.batch_sizes[:-1].tolist(),
+        ).astype(np.int_)
 
     def apply(self, fn):
-        return attr.evolve(self, ps=torch.nn.utils.rnn.PackedSequence(
-                fn(self.ps.data), self.ps.batch_sizes))
+        return attr.evolve(
+            self, ps=torch.nn.utils.rnn.PackedSequence(
+                fn(self.ps.data), self.ps.batch_sizes,
+            ),
+        )
 
     def with_new_ps(self, ps):
         return attr.evolve(self, ps=ps)
 
     def pad(self, batch_first, others_to_unsort=(), padding_value=0.0):
         padded, seq_lengths = torch.nn.utils.rnn.pad_packed_sequence(
-            self.ps, batch_first=batch_first, padding_value=padding_value)
+            self.ps, batch_first=batch_first, padding_value=padding_value,
+        )
         results = padded[
-            self.sort_to_orig], [seq_lengths[i] for i in self.sort_to_orig]
+            self.sort_to_orig
+        ], [seq_lengths[i] for i in self.sort_to_orig]
         return results + tuple(t[self.sort_to_orig] for t in others_to_unsort)
 
     def cuda(self):
@@ -97,7 +112,8 @@ class PackedSequencePlus:
 
     def raw_index(self, orig_batch_idx, seq_idx):
         result = np.take(self.cum_batch_sizes, seq_idx) + np.take(
-                self.sort_to_orig, orig_batch_idx)
+            self.sort_to_orig, orig_batch_idx,
+        )
         if self.ps.data is not None:
             assert np.all(result < len(self.ps.data))
         return result
@@ -105,21 +121,30 @@ class PackedSequencePlus:
     def select(self, orig_batch_idx, seq_idx=None):
         if seq_idx is None:
             return self.ps.data[
-                self.raw_index(orig_batch_idx, range(self.lengths[self.sort_to_orig[orig_batch_idx]]))]
+                self.raw_index(
+                    orig_batch_idx, range(
+                        self.lengths[self.sort_to_orig[orig_batch_idx]],
+                    ),
+                )
+            ]
         return self.ps.data[self.raw_index(orig_batch_idx, seq_idx)]
-      
+
     def select_subseq(self, orig_batch_indices):
-        lengths = [self.lengths[self.sort_to_orig[i]] for i in
-          orig_batch_indices]
+        lengths = [
+            self.lengths[self.sort_to_orig[i]] for i in
+            orig_batch_indices
+        ]
         return self.from_gather(
             lengths=lengths,
             map_index=self.raw_index,
             gather_from_indices=lambda indices:
-            self.ps.data[torch.LongTensor(indices)])
+            self.ps.data[torch.LongTensor(indices)],
+        )
 
     def orig_index(self, raw_idx):
         seq_idx = np.searchsorted(
-                self.cum_batch_sizes, raw_idx, side='right') - 1
+            self.cum_batch_sizes, raw_idx, side='right',
+        ) - 1
         batch_idx = raw_idx - self.cum_batch_sizes[seq_idx]
         orig_batch_idx = self.sort_to_orig[batch_idx]
         return orig_batch_idx, seq_idx
@@ -142,8 +167,11 @@ class PackedSequencePlus:
         #     out[k + 0] = out[k + 1] = ... out[k + k],
         #   and so on.
         v = self.ps.data
-        ps_data = v.unsqueeze(1).repeat(1, k, *(
-            [1] * (v.dim() - 1))).view(-1, *v.shape[1:])
+        ps_data = v.unsqueeze(1).repeat(
+            1, k, *(
+                [1] * (v.dim() - 1)
+            ),
+        ).view(-1, *v.shape[1:])
         batch_sizes = (np.array(self.ps.batch_sizes) * k).tolist()
         lengths = np.repeat(self.lengths, k).tolist()
         sort_to_orig = [
@@ -153,9 +181,10 @@ class PackedSequencePlus:
             exp_i for i in self.orig_to_sort for exp_i in range(i * k, i * k + k)
         ]
         return PackedSequencePlus(
-                _make_packed_sequence(ps_data, batch_sizes),
-                lengths, sort_to_orig, orig_to_sort)
-    
+            _make_packed_sequence(ps_data, batch_sizes),
+            lengths, sort_to_orig, orig_to_sort,
+        )
+
     @classmethod
     def from_lists(cls, lists, item_shape, device, item_to_tensor):
         # result = tensor_type(sum(len(lst) for lst in lists), *item_shape)
@@ -174,12 +203,15 @@ class PackedSequencePlus:
 
         result = torch.stack(result_list, 0)
         return cls(
-                _make_packed_sequence(result, batch_bounds),
-                lengths, sort_to_orig, orig_to_sort)
-    
+            _make_packed_sequence(result, batch_bounds),
+            lengths, sort_to_orig, orig_to_sort,
+        )
+
     @classmethod
     def from_gather(cls, lengths, map_index, gather_from_indices):
-        sorted_lengths, sort_to_orig, orig_to_sort = argsort(lengths, reverse=True)
+        sorted_lengths, sort_to_orig, orig_to_sort = argsort(
+            lengths, reverse=True,
+        )
         batch_bounds = batch_bounds_for_packing(sorted_lengths)
 
         indices = []
@@ -192,8 +224,9 @@ class PackedSequencePlus:
         result = gather_from_indices(indices)
 
         return cls(
-                _make_packed_sequence(result, batch_bounds),
-                sorted_lengths, sort_to_orig, orig_to_sort)
+            _make_packed_sequence(result, batch_bounds),
+            sorted_lengths, sort_to_orig, orig_to_sort,
+        )
 
     @classmethod
     def cat_seqs(cls, items):
@@ -208,15 +241,18 @@ class PackedSequencePlus:
 
         # For each sequence in the result, figure out which item each seq_idx belongs to
         concat_data = torch.cat([item.ps.data for item in items], dim=0)
-        concat_data_base_indices = np.cumsum([0] + [item.ps.data.shape[0] for item in items])
+        concat_data_base_indices = np.cumsum(
+            [0] + [item.ps.data.shape[0] for item in items],
+        )
 
         item_map_per_batch_item = []
         for batch_idx in range(batch_size):
             item_map_per_batch_item.append([
                 (item_idx, item, i)
                 for item_idx, item in enumerate(items)
-                for i in range(item.lengths[item.sort_to_orig[batch_idx]])])
-        
+                for i in range(item.lengths[item.sort_to_orig[batch_idx]])
+            ])
+
         def map_index(batch_idx, seq_idx):
             item_idx, item, seq_idx_within_item = item_map_per_batch_item[batch_idx][seq_idx]
             return concat_data_base_indices[item_idx] + item.raw_index(batch_idx, seq_idx_within_item)
@@ -224,4 +260,5 @@ class PackedSequencePlus:
         return cls.from_gather(
             lengths=unsorted_concat_lengths,
             map_index=map_index,
-            gather_from_indices=lambda indices: concat_data[torch.LongTensor(indices)])
+            gather_from_indices=lambda indices: concat_data[torch.LongTensor(indices)],
+        )

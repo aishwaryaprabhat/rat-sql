@@ -6,21 +6,21 @@ function(args) _base(output_from=_output_from, data_path=args.data_path) + {
     local data_path = args.data_path,
 
     local lr_s = '%0.1e' % args.lr,
-    local bert_lr_s = '%0.1e' % args.bert_lr,
+    local bart_lr_s = '%0.1e' % args.bart_lr,
     local end_lr_s = if args.end_lr == 0 then '0e0' else '%0.1e' % args.end_lr,
 
-    local base_bert_enc_size = if args.bert_version == "bert-large-uncased-whole-word-masking" then 1024 else 768,
-    local enc_size =  base_bert_enc_size,
+    local base_bart_enc_size = if args.bart_version == "sshleifer/distilbart-xsum-12-6" then 1024 else 768,
+    local enc_size =  base_bart_enc_size,
 
-    model_name: 'bs=%(bs)d,lr=%(lr)s,bert_lr=%(bert_lr)s,end_lr=%(end_lr)s,att=%(att)d' % (args + {
+    model_name: 'bs=%(bs)d,lr=%(lr)s,bart_lr=%(bart_lr)s,end_lr=%(end_lr)s,att=%(att)d' % (args + {
         lr: lr_s,
-        bert_lr: bert_lr_s,
+        bart_lr: bart_lr_s,
         end_lr: end_lr_s,
     }),
 
     model+: {
         encoder+: {
-            name: 'spider-bert',
+            name: 'spider-bart',
             batch_encs_update:: null,
             question_encoder:: null,
             column_encoder:: null,
@@ -35,8 +35,8 @@ function(args) _base(output_from=_output_from, data_path=args.data_path) + {
             },
             summarize_header: args.summarize_header,
             use_column_type: args.use_column_type,
-            bert_version: args.bert_version,
-            bert_token_type: args.bert_token_type,
+            bart_version: args.bart_version,
+            bart_token_type: args.bart_token_type,
             top_k_learnable:: null,
             word_emb_size:: null,
         },
@@ -48,9 +48,9 @@ function(args) _base(output_from=_output_from, data_path=args.data_path) + {
             compute_sc_link: args.sc_link,
             compute_cv_link: args.cv_link,
             fix_issue_16_primary_keys: true,
-            bert_version: args.bert_version,
+            bart_version: args.bart_version,
             count_tokens_in_word_emb_for_vocab:: null,
-            save_path: data_path + 'nl2code,output_from=%s,fs=%d,emb=bert,cvlink' % [_output_from, _fs],
+            save_path: data_path + 'nl2code,output_from=%s,fs=%d,emb=bart,cvlink' % [_output_from, _fs],
         },
         decoder_preproc+: {
             grammar+: {
@@ -59,13 +59,13 @@ function(args) _base(output_from=_output_from, data_path=args.data_path) + {
                 infer_from_conditions: true,
                 factorize_sketch: _fs,
             },
-            save_path: data_path + 'nl2code,output_from=%s,fs=%d,emb=bert,cvlink' % [_output_from, _fs],
+            save_path: data_path + 'nl2code,output_from=%s,fs=%d,emb=bart,cvlink' % [_output_from, _fs],
 
             compute_sc_link:: null,
             compute_cv_link:: null,
             db_path:: null,
             fix_issue_16_primary_keys:: null,
-            bert_version:: null,
+            bart_version:: null,
         },
         decoder+: {
             name: 'NL2Code',
@@ -92,14 +92,14 @@ function(args) _base(output_from=_output_from, data_path=args.data_path) + {
     },
 
     optimizer: {
-        name: 'bertAdamw',
+        name: 'bartAdamw',
         lr: 0.0,
-        bert_lr: 0.0,
+        bart_lr: 0.0,
     },
 
     lr_scheduler+: {
-        name: 'bert_warmup_polynomial_group',
-        start_lrs: [args.lr, args.bert_lr],
+        name: 'bart_warmup_polynomial_group',
+        start_lrs: [args.lr, args.bart_lr],
         end_lr: args.end_lr,
         num_warmup_steps: $.train.max_steps / 8,
     },

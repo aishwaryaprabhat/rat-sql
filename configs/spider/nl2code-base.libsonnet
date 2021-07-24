@@ -15,10 +15,10 @@
 
 function(output_from, data_path='data/spider/') {
     local PREFIX = data_path,
-    
+
     data: {
         train: {
-            name: 'spider', 
+            name: 'spider',
             paths: [
               PREFIX + 'train_%s.json' % [s]
               for s in ['spider', 'others']],
@@ -28,7 +28,7 @@ function(output_from, data_path='data/spider/') {
             db_path: PREFIX + 'database',
         },
         val: {
-            name: 'spider', 
+            name: 'spider',
             paths: [PREFIX + 'dev.json'],
             tables_paths: [PREFIX + 'tables.json'],
             db_path: PREFIX + 'database',
@@ -49,7 +49,7 @@ function(output_from, data_path='data/spider/') {
                 num_layers: 4,
                 num_heads: 8,
             },
-        },   
+        },
         decoder: {
             name: 'NL2Code',
             dropout: 0.2,
@@ -86,10 +86,10 @@ function(output_from, data_path='data/spider/') {
         batch_size: 10,
         eval_batch_size: 50,
 
-        keep_every_n: 1000,
+        keep_every_n: 10000,
         eval_every_n: 100,
-        save_every_n: 100,
-        report_every_n: 10,
+        save_every_n: 1000,
+        report_every_n: 1,
 
         max_steps: 40000,
         num_eval_items: 50,

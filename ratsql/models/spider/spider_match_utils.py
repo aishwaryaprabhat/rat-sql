@@ -4,25 +4,25 @@ import string
 import nltk.corpus
 
 STOPWORDS = set(nltk.corpus.stopwords.words('english'))
-PUNKS = set(a for a in string.punctuation)
+PUNKS = {a for a in string.punctuation}
 
 
 # schema linking, similar to IRNet
 def compute_schema_linking(question, column, table):
     def partial_match(x_list, y_list):
-        x_str = " ".join(x_list)
-        y_str = " ".join(y_list)
+        x_str = ' '.join(x_list)
+        y_str = ' '.join(y_list)
         if x_str in STOPWORDS or x_str in PUNKS:
             return False
-        if re.match(rf"\b{re.escape(x_str)}\b", y_str):
+        if re.match(rf'\b{re.escape(x_str)}\b', y_str):
             assert x_str in y_str
             return True
         else:
             return False
 
     def exact_match(x_list, y_list):
-        x_str = " ".join(x_list)
-        y_str = " ".join(y_list)
+        x_str = ' '.join(x_list)
+        y_str = ' '.join(y_list)
         if x_str == y_str:
             return True
         else:
@@ -46,32 +46,32 @@ def compute_schema_linking(question, column, table):
     while n > 0:
         for i in range(len(question) - n + 1):
             n_gram_list = question[i:i + n]
-            n_gram = " ".join(n_gram_list)
+            n_gram = ' '.join(n_gram_list)
             if len(n_gram.strip()) == 0:
                 continue
             # exact match case
             for col_id in col_id2list:
                 if exact_match(n_gram_list, col_id2list[col_id]):
                     for q_id in range(i, i + n):
-                        q_col_match[f"{q_id},{col_id}"] = "CEM"
+                        q_col_match[f'{q_id},{col_id}'] = 'CEM'
             for tab_id in tab_id2list:
                 if exact_match(n_gram_list, tab_id2list[tab_id]):
                     for q_id in range(i, i + n):
-                        q_tab_match[f"{q_id},{tab_id}"] = "TEM"
+                        q_tab_match[f'{q_id},{tab_id}'] = 'TEM'
 
             # partial match case
             for col_id in col_id2list:
                 if partial_match(n_gram_list, col_id2list[col_id]):
                     for q_id in range(i, i + n):
-                        if f"{q_id},{col_id}" not in q_col_match:
-                            q_col_match[f"{q_id},{col_id}"] = "CPM"
+                        if f'{q_id},{col_id}' not in q_col_match:
+                            q_col_match[f'{q_id},{col_id}'] = 'CPM'
             for tab_id in tab_id2list:
                 if partial_match(n_gram_list, tab_id2list[tab_id]):
                     for q_id in range(i, i + n):
-                        if f"{q_id},{tab_id}" not in q_tab_match:
-                            q_tab_match[f"{q_id},{tab_id}"] = "TPM"
+                        if f'{q_id},{tab_id}' not in q_tab_match:
+                            q_tab_match[f'{q_id},{tab_id}'] = 'TPM'
         n -= 1
-    return {"q_col_match": q_col_match, "q_tab_match": q_tab_match}
+    return {'q_col_match': q_col_match, 'q_tab_match': q_tab_match}
 
 
 def compute_cell_value_linking(tokens, schema):
@@ -108,22 +108,25 @@ def compute_cell_value_linking(tokens, schema):
 
         num_flag = isnumber(word)
 
-        CELL_MATCH_FLAG = "CELLMATCH"
+        CELL_MATCH_FLAG = 'CELLMATCH'
 
         for col_id, column in enumerate(schema.columns):
             if col_id == 0:
-                assert column.orig_name == "*"
+                assert column.orig_name == '*'
                 continue
 
-            # word is number 
+            # word is number
             if num_flag:
-                if column.type in ["number", "time"]:  # TODO fine-grained date
-                    num_date_match[f"{q_id},{col_id}"] = column.type.upper()
+                if column.type in ['number', 'time']:  # TODO fine-grained date
+                    num_date_match[f'{q_id},{col_id}'] = column.type.upper()
             else:
-                ret = db_word_match(word, column.orig_name, column.table.orig_name, schema.connection)
+                ret = db_word_match(
+                    word, column.orig_name,
+                    column.table.orig_name, schema.connection,
+                )
                 if ret:
                     # print(word, ret)
-                    cell_match[f"{q_id},{col_id}"] = CELL_MATCH_FLAG
+                    cell_match[f'{q_id},{col_id}'] = CELL_MATCH_FLAG
 
-    cv_link = {"num_date_match": num_date_match, "cell_match": cell_match}
+    cv_link = {'num_date_match': num_date_match, 'cell_match': cell_match}
     return cv_link

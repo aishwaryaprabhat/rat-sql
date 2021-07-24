@@ -120,5 +120,8 @@ export PYTHONPATH="/home/aishwaryaprabhat/rat-sql/third_party/wikisql/:${PYTHONP
 python run.py train experiments/spider-bert-run.jsonnet
 
 
+python -c "import torch; print(torch.cuda.is_available());"
+PATH=/usr/local/cuda-11.0/bin${PATH:+:${PATH}}
+LD_LIBRARY_PATH=/usr/local/cuda-11.0/lib64 ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 ```

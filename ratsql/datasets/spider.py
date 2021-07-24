@@ -3,15 +3,16 @@ import re
 import sqlite3
 from copy import copy
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict
+from typing import List
 
 import attr
-import torch
 import networkx as nx
+import torch
 from tqdm import tqdm
 
-from ratsql.utils import registry
 from ratsql.datasets.spider_lib import evaluation
+from ratsql.utils import registry
 
 
 @attr.s
@@ -72,8 +73,11 @@ def load_tables(paths):
                     unsplit_name=name,
                     orig_name=orig_name,
                 )
-                for i, (name, orig_name) in enumerate(zip(
-                    schema_dict['table_names'], schema_dict['table_names_original']))
+                for i, (name, orig_name) in enumerate(
+                    zip(
+                        schema_dict['table_names'], schema_dict['table_names_original'],
+                    ),
+                )
             )
             columns = tuple(
                 Column(
@@ -84,10 +88,13 @@ def load_tables(paths):
                     orig_name=orig_col_name,
                     type=col_type,
                 )
-                for i, ((table_id, col_name), (_, orig_col_name), col_type) in enumerate(zip(
-                    schema_dict['column_names'],
-                    schema_dict['column_names_original'],
-                    schema_dict['column_types']))
+                for i, ((table_id, col_name), (_, orig_col_name), col_type) in enumerate(
+                    zip(
+                        schema_dict['column_names'],
+                        schema_dict['column_names_original'],
+                        schema_dict['column_types'],
+                    ),
+                )
             )
 
             # Link columns to tables
@@ -109,16 +116,22 @@ def load_tables(paths):
                 foreign_key_graph.add_edge(
                     source_column.table.id,
                     dest_column.table.id,
-                    columns=(source_column_id, dest_column_id))
+                    columns=(source_column_id, dest_column_id),
+                )
                 foreign_key_graph.add_edge(
                     dest_column.table.id,
                     source_column.table.id,
-                    columns=(dest_column_id, source_column_id))
+                    columns=(dest_column_id, source_column_id),
+                )
 
             db_id = schema_dict['db_id']
             assert db_id not in schemas
-            schemas[db_id] = Schema(db_id, tables, columns, foreign_key_graph, schema_dict)
-            eval_foreign_key_maps[db_id] = evaluation.build_foreign_key_map(schema_dict)
+            schemas[db_id] = Schema(
+                db_id, tables, columns, foreign_key_graph, schema_dict,
+            )
+            eval_foreign_key_maps[db_id] = evaluation.build_foreign_key_map(
+                schema_dict,
+            )
 
     return schemas, eval_foreign_key_maps
 
@@ -140,34 +153,34 @@ class SpiderDataset(torch.utils.data.Dataset):
                     code=entry['sql'],
                     schema=self.schemas[entry['db_id']],
                     orig=entry,
-                    orig_schema=self.schemas[entry['db_id']].orig)
+                    orig_schema=self.schemas[entry['db_id']].orig,
+                )
                 self.examples.append(item)
-        
+
         if demo_path:
             self.demos: Dict[str, List] = json.load(open(demo_path))
-            
+
         # Backup in-memory copies of all the DBs and create the live connections
-        for db_id, schema in tqdm(self.schemas.items(), desc="DB connections"):
-            sqlite_path = Path(db_path) / db_id / f"{db_id}.sqlite"
+        for db_id, schema in tqdm(self.schemas.items(), desc='DB connections'):
+            sqlite_path = Path(db_path) / db_id / f'{db_id}.sqlite'
             source: sqlite3.Connection
             with sqlite3.connect(str(sqlite_path)) as source:
                 dest = sqlite3.connect(':memory:')
                 dest.row_factory = sqlite3.Row
                 source.backup(dest)
             schema.connection = dest
-            
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, idx):
         return self.examples[idx]
-    
+
     def __del__(self):
         for _, schema in self.schemas.items():
             if schema.connection:
                 schema.connection.close()
-    
+
     class Metrics:
         def __init__(self, dataset):
             self.dataset = dataset
@@ -178,25 +191,28 @@ class SpiderDataset(torch.utils.data.Dataset):
             self.evaluator = evaluation.Evaluator(
                 self.dataset.db_path,
                 self.foreign_key_maps,
-                'match')
+                'match',
+            )
             self.results = []
 
         def add(self, item, inferred_code, orig_question=None):
             ret_dict = self.evaluator.evaluate_one(
-                item.schema.db_id, item.orig['query'], inferred_code)
+                item.schema.db_id, item.orig['query'], inferred_code,
+            )
             if orig_question:
-                ret_dict["orig_question"] = orig_question
+                ret_dict['orig_question'] = orig_question
             self.results.append(ret_dict)
 
         def add_beams(self, item, inferred_codes, orig_question=None):
             beam_dict = {}
             if orig_question:
-                beam_dict["orig_question"] = orig_question
+                beam_dict['orig_question'] = orig_question
             for i, code in enumerate(inferred_codes):
                 ret_dict = self.evaluator.evaluate_one(
-                    item.schema.db_id, item.orig['query'], code)
+                    item.schema.db_id, item.orig['query'], code,
+                )
                 beam_dict[i] = ret_dict
-                if ret_dict["exact"] is True:
+                if ret_dict['exact'] is True:
                     break
             self.results.append(beam_dict)
 
@@ -204,5 +220,5 @@ class SpiderDataset(torch.utils.data.Dataset):
             self.evaluator.finalize()
             return {
                 'per_item': self.results,
-                'total_scores': self.evaluator.scores
+                'total_scores': self.evaluator.scores,
             }

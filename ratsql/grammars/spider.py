@@ -30,7 +30,9 @@ def join(iterable, delimiter):
 def intersperse(delimiter, seq):
     return itertools.islice(
         itertools.chain.from_iterable(
-            zip(itertools.repeat(delimiter), seq)), 1, None)
+            zip(itertools.repeat(delimiter), seq),
+        ), 1, None,
+    )
 
 
 @registry.register('grammar', 'spider')
@@ -46,35 +48,43 @@ class SpiderLanguage:
             end_with_from=False,
             clause_order=None,
             infer_from_conditions=False,
-            factorize_sketch=0):
+            factorize_sketch=0,
+    ):
 
         # collect pointers and checkers
         custom_primitive_type_checkers = {}
         self.pointers = set()
         if use_table_pointer:
-            custom_primitive_type_checkers['table'] = lambda x: isinstance(x, int)
+            custom_primitive_type_checkers['table'] = lambda x: isinstance(
+                x, int,
+            )
             self.pointers.add('table')
         self.include_columns = include_columns
         if include_columns:
-            custom_primitive_type_checkers['column'] = lambda x: isinstance(x, int)
+            custom_primitive_type_checkers['column'] = lambda x: isinstance(
+                x, int,
+            )
             self.pointers.add('column')
 
         # create ast wrapper
         self.factorize_sketch = factorize_sketch
         if self.factorize_sketch == 0:
-            asdl_file = "Spider.asdl"
+            asdl_file = 'Spider.asdl'
         elif self.factorize_sketch == 1:
-            asdl_file = "Spider_f1.asdl"
+            asdl_file = 'Spider_f1.asdl'
         elif self.factorize_sketch == 2:
-            asdl_file = "Spider_f2.asdl"
+            asdl_file = 'Spider_f2.asdl'
         else:
             raise NotImplementedError
         self.ast_wrapper = ast_util.ASTWrapper(
             asdl.parse(
                 os.path.join(
                     os.path.dirname(os.path.abspath(__file__)),
-                    asdl_file)),
-            custom_primitive_type_checkers=custom_primitive_type_checkers)
+                    asdl_file,
+                ),
+            ),
+            custom_primitive_type_checkers=custom_primitive_type_checkers,
+        )
         if not use_table_pointer:
             self.ast_wrapper.singular_types['Table'].fields[0].type = 'int'
         if not include_columns:
@@ -102,7 +112,7 @@ class SpiderLanguage:
             # clause order is prioritized over configurations like end_with_from
             assert factorize_sketch == 2  # TODO support other grammars
             sql_fields = self.ast_wrapper.product_types['sql'].fields
-            letter2field = {k: v for k, v in zip("SFWGOI", sql_fields)}
+            letter2field = {k: v for k, v in zip('SFWGOI', sql_fields)}
             new_sql_fields = [letter2field[k] for k in self.clause_order]
             self.ast_wrapper.product_types['sql'].fields = new_sql_fields
         else:
@@ -112,7 +122,7 @@ class SpiderLanguage:
                 del sql_fields[1]
             else:
                 sql_fields = self.ast_wrapper.product_types['sql'].fields
-                assert sql_fields[1].name == "from"
+                assert sql_fields[1].name == 'from'
                 if self.end_with_from:
                     sql_fields.append(sql_fields[1])
                     del sql_fields[1]
@@ -121,7 +131,9 @@ class SpiderLanguage:
         return self.parse_sql(code)
 
     def unparse(self, tree, item):
-        unparser = SpiderUnparser(self.ast_wrapper, item.schema, self.factorize_sketch)
+        unparser = SpiderUnparser(
+            self.ast_wrapper, item.schema, self.factorize_sketch,
+        )
         return unparser.unparse_sql(tree)
 
     @classmethod
@@ -243,16 +255,16 @@ class SpiderLanguage:
                 'except': self.parse_sql(sql['except'], optional=True),
                 'union': self.parse_sql(sql['union'], optional=True),
                 **({
-                       'from': self.parse_from(sql['from'], self.infer_from_conditions),
-                   } if self.output_from else {})
+                    'from': self.parse_from(sql['from'], self.infer_from_conditions),
+                } if self.output_from else {}),
             })
         elif self.factorize_sketch == 1:
             return filter_nones({
                 '_type': 'sql',
                 'select': self.parse_select(sql['select']),
                 **({
-                       'from': self.parse_from(sql['from'], self.infer_from_conditions),
-                   } if self.output_from else {}),
+                    'from': self.parse_from(sql['from'], self.infer_from_conditions),
+                } if self.output_from else {}),
                 'sql_where': filter_nones({
                     '_type': 'sql_where',
                     'where': self.parse_cond(sql['where'], optional=True),
@@ -275,28 +287,28 @@ class SpiderLanguage:
                                 'intersect': self.parse_sql(sql['intersect'], optional=True),
                                 'except': self.parse_sql(sql['except'], optional=True),
                                 'union': self.parse_sql(sql['union'], optional=True),
-                            })
-                        })
-                    })
-                })
+                            }),
+                        }),
+                    }),
+                }),
             })
         elif self.factorize_sketch == 2:
             return filter_nones({
                 '_type': 'sql',
                 'select': self.parse_select(sql['select']),
                 **({
-                       'from': self.parse_from(sql['from'], self.infer_from_conditions),
-                   } if self.output_from else {}),
-                "sql_where": filter_nones({
+                    'from': self.parse_from(sql['from'], self.infer_from_conditions),
+                } if self.output_from else {}),
+                'sql_where': filter_nones({
                     '_type': 'sql_where',
                     'where': self.parse_cond(sql['where'], optional=True),
                 }),
-                "sql_groupby": filter_nones({
+                'sql_groupby': filter_nones({
                     '_type': 'sql_groupby',
                     'group_by': [self.parse_col_unit(u) for u in sql['groupBy']],
                     'having': self.parse_cond(sql['having'], optional=True),
                 }),
-                "sql_orderby": filter_nones({
+                'sql_orderby': filter_nones({
                     '_type': 'sql_orderby',
                     'order_by': self.parse_order_by(sql['orderBy']),
                     'limit': sql['limit'] if self.include_literals else (sql['limit'] is not None),
@@ -306,7 +318,7 @@ class SpiderLanguage:
                     'intersect': self.parse_sql(sql['intersect'], optional=True),
                     'except': self.parse_sql(sql['except'], optional=True),
                     'union': self.parse_sql(sql['union'], optional=True),
-                })
+                }),
             })
 
     def parse_select(self, select):
@@ -329,9 +341,10 @@ class SpiderLanguage:
         return filter_nones({
             '_type': 'from',
             'table_units': [
-                self.parse_table_unit(u) for u in from_['table_units']],
-            'conds': self.parse_cond(from_['conds'], optional=True) \
-                if not infer_from_conditions else None,
+                self.parse_table_unit(u) for u in from_['table_units']
+            ],
+            'conds': self.parse_cond(from_['conds'], optional=True)
+            if not infer_from_conditions else None,
         })
 
     def parse_order_by(self, order_by):
@@ -342,31 +355,36 @@ class SpiderLanguage:
         return {
             '_type': 'order_by',
             'order': {'_type': self.ORDERS_F[order]},
-            'val_units': [self.parse_val_unit(v) for v in val_units]
+            'val_units': [self.parse_val_unit(v) for v in val_units],
         }
 
     COND_TYPES_F, COND_TYPES_B = bimap(
         # ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists'),
         # (None, 'Between', 'Eq', 'Gt', 'Lt', 'Ge', 'Le', 'Ne', 'In', 'Like', 'Is', 'Exists'))
         range(1, 10),
-        ('Between', 'Eq', 'Gt', 'Lt', 'Ge', 'Le', 'Ne', 'In', 'Like'))
+        ('Between', 'Eq', 'Gt', 'Lt', 'Ge', 'Le', 'Ne', 'In', 'Like'),
+    )
 
     UNIT_TYPES_F, UNIT_TYPES_B = bimap(
         # ('none', '-', '+', '*', '/'),
         range(5),
-        ('Column', 'Minus', 'Plus', 'Times', 'Divide'))
+        ('Column', 'Minus', 'Plus', 'Times', 'Divide'),
+    )
 
     AGG_TYPES_F, AGG_TYPES_B = bimap(
         range(6),
-        ('NoneAggOp', 'Max', 'Min', 'Count', 'Sum', 'Avg'))
+        ('NoneAggOp', 'Max', 'Min', 'Count', 'Sum', 'Avg'),
+    )
 
     ORDERS_F, ORDERS_B = bimap(
         ('asc', 'desc'),
-        ('Asc', 'Desc'))
+        ('Asc', 'Desc'),
+    )
 
     LOGIC_OPERATORS_F, LOGIC_OPERATORS_B = bimap(
         ('and', 'or'),
-        ('And', 'Or'))
+        ('And', 'Or'),
+    )
 
 
 @attr.s
@@ -390,7 +408,7 @@ class SpiderUnparser:
         'Le': '<=',
         'Ne': '!=',
         'In': 'IN',
-        'Like': 'LIKE'
+        'Like': 'LIKE',
     }
 
     @classmethod
@@ -472,42 +490,54 @@ class SpiderUnparser:
         tokens = [self.unparse_val_unit(cond['val_unit'])]
         if negated:
             tokens.append('NOT')
-        tokens += [self.COND_TYPES_B[cond['_type']], self.unparse_val(cond['val1'])]
+        tokens += [
+            self.COND_TYPES_B[cond['_type']],
+            self.unparse_val(cond['val1']),
+        ]
         return ' '.join(tokens)
 
     def refine_from(self, tree):
         """
-        1) Inferring tables from columns predicted 
+        1) Inferring tables from columns predicted
         2) Mix them with the predicted tables if any
-        3) Inferring conditions based on tables 
+        3) Inferring conditions based on tables
         """
 
         # nested query in from clause, recursively use the refinement
-        if "from" in tree and tree["from"]["table_units"][0]["_type"] == 'TableUnitSql':
-            for table_unit in tree["from"]["table_units"]:
-                subquery_tree = table_unit["s"]
+        if 'from' in tree and tree['from']['table_units'][0]['_type'] == 'TableUnitSql':
+            for table_unit in tree['from']['table_units']:
+                subquery_tree = table_unit['s']
                 self.refine_from(subquery_tree)
             return
 
         # get predicted tables
         predicted_from_table_ids = set()
-        if "from" in tree:
+        if 'from' in tree:
             table_unit_set = []
-            for table_unit in tree["from"]["table_units"]:
-                if table_unit["table_id"] not in predicted_from_table_ids:
-                    predicted_from_table_ids.add(table_unit["table_id"])
+            for table_unit in tree['from']['table_units']:
+                if table_unit['table_id'] not in predicted_from_table_ids:
+                    predicted_from_table_ids.add(table_unit['table_id'])
                     table_unit_set.append(table_unit)
-            tree["from"]["table_units"] = table_unit_set  # remove duplicate
+            tree['from']['table_units'] = table_unit_set  # remove duplicate
 
         # Get all candidate columns
-        candidate_column_ids = set(self.ast_wrapper.find_all_descendants_of_type(
-            tree, 'column', lambda field: field.type != 'sql'))
-        candidate_columns = [self.schema.columns[i] for i in candidate_column_ids]
-        must_in_from_table_ids = set(
-            column.table.id for column in candidate_columns if column.table is not None)
+        candidate_column_ids = set(
+            self.ast_wrapper.find_all_descendants_of_type(
+                tree, 'column', lambda field: field.type != 'sql',
+            ),
+        )
+        candidate_columns = [
+            self.schema.columns[i]
+            for i in candidate_column_ids
+        ]
+        must_in_from_table_ids = {
+            column.table.id for column in candidate_columns if column.table is not None
+        }
 
         # Table the union of inferred and predicted tables
-        all_from_table_ids = must_in_from_table_ids.union(predicted_from_table_ids)
+        all_from_table_ids = must_in_from_table_ids.union(
+            predicted_from_table_ids,
+        )
         if not all_from_table_ids:
             # TODO: better heuristic e.g., tables that have exact match
             all_from_table_ids = {0}
@@ -521,7 +551,8 @@ class SpiderUnparser:
                 continue
             try:
                 path = nx.shortest_path(
-                    self.schema.foreign_key_graph, source=start_table_id, target=table_id)
+                    self.schema.foreign_key_graph, source=start_table_id, target=table_id,
+                )
             except (nx.NetworkXNoPath, nx.NodeNotFound):
                 covered_tables.add(table_id)
                 continue
@@ -539,7 +570,7 @@ class SpiderUnparser:
                             '_type': 'col_unit',
                             'agg_id': {'_type': 'NoneAggOp'},
                             'col_id': col1,
-                            'is_distinct': False
+                            'is_distinct': False,
                         },
                     },
                     'val1': {
@@ -548,11 +579,12 @@ class SpiderUnparser:
                             '_type': 'col_unit',
                             'agg_id': {'_type': 'NoneAggOp'},
                             'col_id': col2,
-                            'is_distinct': False
-                        }
-                    }
+                            'is_distinct': False,
+                        },
+                    },
                 })
-        table_units = [{'_type': 'Table', 'table_id': i} for i in sorted(all_from_table_ids)]
+        table_units = [{'_type': 'Table', 'table_id': i}
+                       for i in sorted(all_from_table_ids)]
 
         tree['from'] = {
             '_type': 'from',
@@ -583,34 +615,37 @@ class SpiderUnparser:
                 else:
                     raise NotImplementedError
 
-        tree, target_tree = find_subtree(tree, "sql_where")
+        tree, target_tree = find_subtree(tree, 'sql_where')
         # cond? where,
         if 'where' in target_tree:
             result += [
                 'WHERE',
-                self.unparse_cond(target_tree['where'])
+                self.unparse_cond(target_tree['where']),
             ]
 
-        tree, target_tree = find_subtree(tree, "sql_groupby")
+        tree, target_tree = find_subtree(tree, 'sql_groupby')
         # col_unit* group_by,
         if 'group_by' in target_tree:
             result += [
                 'GROUP BY',
-                ', '.join(self.unparse_col_unit(c) for c in target_tree['group_by'])
+                ', '.join(
+                    self.unparse_col_unit(c)
+                    for c in target_tree['group_by']
+                ),
             ]
 
-        tree, target_tree = find_subtree(tree, "sql_orderby")
+        tree, target_tree = find_subtree(tree, 'sql_orderby')
         # order_by? order_by,
         if 'order_by' in target_tree:
             result.append(self.unparse_order_by(target_tree['order_by']))
 
-        tree, target_tree = find_subtree(tree, "sql_groupby")
+        tree, target_tree = find_subtree(tree, 'sql_groupby')
         # cond? having,
         if 'having' in target_tree:
             result += ['HAVING', self.unparse_cond(target_tree['having'])]
 
-        tree, target_tree = find_subtree(tree, "sql_orderby")
-        # int? limit, 
+        tree, target_tree = find_subtree(tree, 'sql_orderby')
+        # int? limit,
         if 'limit' in target_tree:
             if isinstance(target_tree['limit'], bool):
                 if target_tree['limit']:
@@ -618,7 +653,7 @@ class SpiderUnparser:
             else:
                 result += ['LIMIT', str(target_tree['limit'])]
 
-        tree, target_tree = find_subtree(tree, "sql_ieu")
+        tree, target_tree = find_subtree(tree, 'sql_ieu')
         # sql? intersect,
         if 'intersect' in target_tree:
             result += ['INTERSECT', self.unparse_sql(target_tree['intersect'])]
@@ -635,7 +670,12 @@ class SpiderUnparser:
         tokens = ['SELECT']
         if select['is_distinct']:
             tokens.append('DISTINCT')
-        tokens.append(', '.join(self.unparse_agg(agg) for agg in select.get('aggs', [])))
+        tokens.append(
+            ', '.join(
+                self.unparse_agg(agg)
+                for agg in select.get('aggs', [])
+            ),
+        )
         return ' '.join(tokens)
 
     def unparse_agg(self, agg):
@@ -687,9 +727,12 @@ class SpiderUnparser:
                         output_cond_indices.add(cond_idx)
                 if conds_to_output:
                     tokens += ['ON']
-                    tokens += list(intersperse(
-                        'AND',
-                        (self.unparse_cond(cond) for cond in conds_to_output)))
+                    tokens += list(
+                        intersperse(
+                            'AND',
+                            (self.unparse_cond(cond) for cond in conds_to_output),
+                        ),
+                    )
         return ' '.join(tokens)
 
     def unparse_order_by(self, order_by):

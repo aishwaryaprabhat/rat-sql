@@ -1,12 +1,18 @@
-"Handle AST objects."
-
+'Handle AST objects.'
 import ast
-# pylint: disable=unused-import
-from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
-# pylint: enable=unused-import
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import TextIO
+from typing import Tuple
+from typing import Union
 
 import asdl
 import attr
+# pylint: disable=unused-import
+# pylint: enable=unused-import
 
 
 class ASTWrapperVisitor(asdl.VisitorBase):
@@ -19,7 +25,7 @@ class ASTWrapperVisitor(asdl.VisitorBase):
 
     def __init__(self):
         # type: () -> None
-        super(ASTWrapperVisitor, self).__init__()
+        super().__init__()
         self.constructors = {}  # type: Dict[str, asdl.Constructor]
         self.sum_types = {}  # type: Dict[str, asdl.Sum]
         self.product_types = {}  # type: Dict[str, asdl.Product]
@@ -53,7 +59,9 @@ class ASTWrapperVisitor(asdl.VisitorBase):
         # type: (asdl.Field, str) -> None
         # pylint: disable=no-self-use
         if field.name is None:
-            raise ValueError(f'Field of type {field.type} in {name} lacks name')
+            raise ValueError(
+                f'Field of type {field.type} in {name} lacks name',
+            )
 
     def visitProduct(self, prod, name):
         # type: (asdl.Product, str) -> None
@@ -65,7 +73,7 @@ class ASTWrapperVisitor(asdl.VisitorBase):
 SingularType = Union[asdl.Constructor, asdl.Product]
 
 
-class ASTWrapper(object):
+class ASTWrapper:
     '''Provides helper methods on the ASDL AST.'''
 
     default_primitive_type_checkers = {
@@ -74,7 +82,7 @@ class ASTWrapper(object):
         'string': lambda x: isinstance(x, str),
         'bytes': lambda x: isinstance(x, bytes),
         'object': lambda x: isinstance(x, object),
-        'singleton': lambda x: x is True or x is False or x is None
+        'singleton': lambda x: x is True or x is False or x is None,
     }
 
     # pylint: disable=too-few-public-methods
@@ -92,9 +100,11 @@ class ASTWrapper(object):
         self.seq_fragment_constructors = {}
         self.primitive_type_checkers = {
             **self.default_primitive_type_checkers,
-            **custom_primitive_type_checkers
+            **custom_primitive_type_checkers,
         }
-        self.custom_primitive_types = set(custom_primitive_type_checkers.keys())
+        self.custom_primitive_types = set(
+            custom_primitive_type_checkers.keys(),
+        )
         self.primitive_types = set(self.primitive_type_checkers.keys())
 
         # Product types and constructors:
@@ -119,7 +129,8 @@ class ASTWrapper(object):
             for constructor in sum_type.types
         }
         self.fieldless_constructors = sorted(
-            visitor.fieldless_constructors.keys())
+            visitor.fieldless_constructors.keys(),
+        )
 
     @property
     def types(self):
@@ -186,15 +197,23 @@ class ASTWrapper(object):
             if isinstance(sum_product, asdl.Product):
                 if node_type != expected_type:
                     raise ValueError(
-                        f'Expected type {expected_type}, but instead saw {node_type}. path: {field_path}')
+                        f'Expected type {expected_type}, but instead saw {node_type}. path: {field_path}',
+                    )
             elif isinstance(sum_product, asdl.Sum):
-                possible_names = [t.name
-                                  for t in sum_product.types]  # type: List[str]
+                possible_names = [
+                    t.name
+                    for t in sum_product.types
+                ]  # type: List[str]
                 if is_seq:
-                    possible_names += [t.name for t in getattr(sum_product, 'seq_fragment_types', [])]
+                    possible_names += [
+                        t.name for t in getattr(
+                            sum_product, 'seq_fragment_types', [],
+                        )
+                    ]
                 if node_type not in possible_names:
                     raise ValueError(
-                        f'Expected one of {", ".join(possible_names)}, but instead saw {node_type}. path: {field_path}')
+                        f'Expected one of {", ".join(possible_names)}, but instead saw {node_type}. path: {field_path}',
+                    )
 
             else:
                 raise ValueError(f'Unexpected type in ASDL: {sum_product}')
@@ -203,12 +222,16 @@ class ASTWrapper(object):
             # Either a product or a sum type; we want it to be a product type
             sum_product = self.types[node_type]
             if isinstance(sum_product, asdl.Sum):
-                raise ValueError(f'sum type {node_type} not allowed as node type. path: {field_path}')
+                raise ValueError(
+                    f'sum type {node_type} not allowed as node type. path: {field_path}',
+                )
             fields_to_check = sum_product.fields
         elif node_type in self.constructors:
             fields_to_check = self.constructors[node_type].fields
         else:
-            raise ValueError(f'Unknown node_type {node_type}. path: {field_path}')
+            raise ValueError(
+                f'Unknown node_type {node_type}. path: {field_path}',
+            )
 
         for field in fields_to_check:
             # field.opt:
@@ -219,23 +242,32 @@ class ASTWrapper(object):
             if field.name not in node:
                 if field.opt or field.seq:
                     continue
-                raise ValueError(f'required field {field.name} is missing. path: {field_path}')
+                raise ValueError(
+                    f'required field {field.name} is missing. path: {field_path}',
+                )
 
             if field.seq and field.name in node and not isinstance(
-                    node[field.name], (list, tuple)):  # noqa: E125
-                raise ValueError(f'sequential field {field.name} is not sequence. path: {field_path}')
+                    node[field.name], (list, tuple),
+            ):  # noqa: E125
+                raise ValueError(
+                    f'sequential field {field.name} is not sequence. path: {field_path}',
+                )
 
             # Check that each item in this field has the expected type.
-            items = node.get(field.name,
-                             ()) if field.seq else (node.get(field.name),)
+            items = node.get(
+                field.name,
+                (),
+            ) if field.seq else (node.get(field.name),)
 
             # pylint: disable=cell-var-from-loop
             if field.type in self.primitive_type_checkers:
                 check = self.primitive_type_checkers[field.type]
             else:
                 # pylint: disable=line-too-long
-                check = lambda n: self.verify_ast(n, field.type, field_path + (field.name,),
-                                                  is_seq=field.seq)  # noqa: E731,E501
+                def check(n): return self.verify_ast(
+                    n, field.type, field_path + (field.name,),
+                    is_seq=field.seq,
+                )  # noqa: E731,E501
 
             for item in items:
                 assert check(item)
@@ -259,8 +291,7 @@ class ASTWrapper(object):
                     values = [node[field_info.name]]
 
                 if field_info.type == type:
-                    for value in values:
-                        yield value
+                    yield from values
                 else:
                     queue.extend(values)
 

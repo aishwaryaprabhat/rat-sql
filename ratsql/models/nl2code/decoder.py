@@ -1,4 +1,3 @@
-import collections
 import collections.abc
 import copy
 import itertools
@@ -47,7 +46,8 @@ def accumulate_logprobs(d, keys_and_logprobs):
         else:
             d[key] = torch.logsumexp(
                 torch.stack((logprob, existing), dim=0),
-                dim=0)
+                dim=0,
+            )
 
 
 def get_field_presence_info(ast_wrapper, node, field_infos):
@@ -85,12 +85,15 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
             save_path,
             min_freq=3,
             max_count=5000,
-            use_seq_elem_rules=False):
+            use_seq_elem_rules=False,
+    ):
         self.grammar = registry.construct('grammar', grammar)
         self.ast_wrapper = self.grammar.ast_wrapper
 
         self.vocab_path = os.path.join(save_path, 'dec_vocab.json')
-        self.observed_productions_path = os.path.join(save_path, 'observed_productions.json')
+        self.observed_productions_path = os.path.join(
+            save_path, 'observed_productions.json',
+        )
         self.grammar_rules_path = os.path.join(save_path, 'grammar_rules.json')
         self.data_dir = os.path.join(save_path, 'dec')
 
@@ -127,7 +130,9 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
         self.items[section].append(
             NL2CodeDecoderPreprocItem(
                 tree=root,
-                orig_code=item.code))
+                orig_code=item.code,
+            ),
+        )
 
     def clear_items(self):
         self.items = collections.defaultdict(list)
@@ -144,27 +149,34 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
 
         # observed_productions
         self.sum_type_constructors = serialization.to_dict_with_sorted_values(
-            self.sum_type_constructors)
+            self.sum_type_constructors,
+        )
         self.field_presence_infos = serialization.to_dict_with_sorted_values(
-            self.field_presence_infos, key=str)
+            self.field_presence_infos, key=str,
+        )
         self.seq_lengths = serialization.to_dict_with_sorted_values(
-            self.seq_lengths)
+            self.seq_lengths,
+        )
         self.primitive_types = sorted(self.primitive_types)
         with open(self.observed_productions_path, 'w') as f:
-            json.dump({
-                'sum_type_constructors': self.sum_type_constructors,
-                'field_presence_infos': self.field_presence_infos,
-                'seq_lengths': self.seq_lengths,
-                'primitive_types': self.primitive_types,
-            }, f, indent=2, sort_keys=True)
+            json.dump(
+                {
+                    'sum_type_constructors': self.sum_type_constructors,
+                    'field_presence_infos': self.field_presence_infos,
+                    'seq_lengths': self.seq_lengths,
+                    'primitive_types': self.primitive_types,
+                }, f, indent=2, sort_keys=True,
+            )
 
         # grammar
         self.all_rules, self.rules_mask = self._calculate_rules()
         with open(self.grammar_rules_path, 'w') as f:
-            json.dump({
-                'all_rules': self.all_rules,
-                'rules_mask': self.rules_mask,
-            }, f, indent=2, sort_keys=True)
+            json.dump(
+                {
+                    'all_rules': self.all_rules,
+                    'rules_mask': self.rules_mask,
+                }, f, indent=2, sort_keys=True,
+            )
 
     def load(self):
         self.vocab = vocab.Vocab.load(self.vocab_path)
@@ -182,7 +194,8 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
     def dataset(self, section):
         return [
             NL2CodeDecoderPreprocItem(**json.loads(line))
-            for line in open(os.path.join(self.data_dir, section + '.jsonl'))]
+            for line in open(os.path.join(self.data_dir, section + '.jsonl'))
+        ]
 
     def _record_productions(self, tree):
         queue = [(tree, False)]
@@ -197,9 +210,14 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
                 if type_name in self.ast_wrapper.constructors:
                     sum_type_name = self.ast_wrapper.constructor_to_sum_type[type_name]
                     if is_seq_elem and self.use_seq_elem_rules:
-                        self.sum_type_constructors[sum_type_name + '_seq_elem'].add(type_name)
+                        self.sum_type_constructors[
+                            sum_type_name
+                            + '_seq_elem'
+                        ].add(type_name)
                     else:
-                        self.sum_type_constructors[sum_type_name].add(type_name)
+                        self.sum_type_constructors[sum_type_name].add(
+                            type_name,
+                        )
 
             # Rules of the form:
             # FunctionDef
@@ -213,18 +231,24 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
             field_presence_info = get_field_presence_info(
                 self.ast_wrapper,
                 node,
-                self.ast_wrapper.singular_types[node_type].fields)
+                self.ast_wrapper.singular_types[node_type].fields,
+            )
             self.field_presence_infos[node_type].add(field_presence_info)
 
             for field_info in self.ast_wrapper.singular_types[node_type].fields:
-                field_value = node.get(field_info.name, [] if field_info.seq else None)
+                field_value = node.get(
+                    field_info.name, [] if field_info.seq else None,
+                )
                 to_enqueue = []
                 if field_info.seq:
                     # Rules of the form:
                     # stmt* -> stmt
                     #        | stmt stmt
                     #        | stmt stmt stmt
-                    self.seq_lengths[field_info.type + '*'].add(len(field_value))
+                    self.seq_lengths[
+                        field_info.type
+                        + '*'
+                    ].add(len(field_value))
                     to_enqueue = field_value
                 else:
                     to_enqueue = [field_value]
@@ -261,7 +285,10 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
             assert not isinstance(field_presence_infos, set)
             rules_mask[name] = (offset, offset + len(field_presence_infos))
             offset += len(field_presence_infos)
-            all_rules += [(name, presence) for presence in field_presence_infos]
+            all_rules += [
+                (name, presence)
+                for presence in field_presence_infos
+            ]
 
         # Rules of the form:
         # stmt* -> stmt
@@ -286,8 +313,7 @@ class NL2CodeDecoderPreproc(abstract_preproc.AbstractPreproc):
                 if field_info.type in self.grammar.pointers:
                     pass
                 elif field_info.type in self.ast_wrapper.primitive_types:
-                    for token in self.grammar.tokenize_field_value(field_value):
-                        yield token
+                    yield from self.grammar.tokenize_field_value(field_value)
                 elif isinstance(field_value, (list, tuple)):
                     queue.extend(field_value)
                 elif field_value is not None:
@@ -322,7 +348,8 @@ class NL2CodeDecoder(torch.nn.Module):
             use_align_mat=False,
             use_align_loss=False,
             enumerate_order=False,
-            loss_type="softmax"):
+            loss_type='softmax',
+    ):
         super().__init__()
         self._device = device
         self.preproc = preproc
@@ -334,7 +361,10 @@ class NL2CodeDecoder(torch.nn.Module):
         self.enc_recurrent_size = enc_recurrent_size
         self.recurrent_size = recurrent_size
 
-        self.rules_index = {v: idx for idx, v in enumerate(self.preproc.all_rules)}
+        self.rules_index = {
+            v: idx for idx,
+            v in enumerate(self.preproc.all_rules)
+        }
         self.use_align_mat = use_align_mat
         self.use_align_loss = use_align_loss
         self.enumerate_order = enumerate_order
@@ -348,51 +378,60 @@ class NL2CodeDecoder(torch.nn.Module):
 
         if self.preproc.use_seq_elem_rules:
             self.node_type_vocab = vocab.Vocab(
-                sorted(self.preproc.primitive_types) +
-                sorted(self.ast_wrapper.custom_primitive_types) +
-                sorted(self.preproc.sum_type_constructors.keys()) +
-                sorted(self.preproc.field_presence_infos.keys()) +
-                sorted(self.preproc.seq_lengths.keys()),
-                special_elems=())
+                sorted(self.preproc.primitive_types)
+                + sorted(self.ast_wrapper.custom_primitive_types)
+                + sorted(self.preproc.sum_type_constructors.keys())
+                + sorted(self.preproc.field_presence_infos.keys())
+                + sorted(self.preproc.seq_lengths.keys()),
+                special_elems=(),
+            )
         else:
             self.node_type_vocab = vocab.Vocab(
-                sorted(self.preproc.primitive_types) +
-                sorted(self.ast_wrapper.custom_primitive_types) +
-                sorted(self.ast_wrapper.sum_types.keys()) +
-                sorted(self.ast_wrapper.singular_types.keys()) +
-                sorted(self.preproc.seq_lengths.keys()),
-                special_elems=())
+                sorted(self.preproc.primitive_types)
+                + sorted(self.ast_wrapper.custom_primitive_types)
+                + sorted(self.ast_wrapper.sum_types.keys())
+                + sorted(self.ast_wrapper.singular_types.keys())
+                + sorted(self.preproc.seq_lengths.keys()),
+                special_elems=(),
+            )
 
         self.state_update = variational_lstm.RecurrentDropoutLSTMCell(
-            input_size=self.rule_emb_size * 2 + self.enc_recurrent_size + self.recurrent_size + self.node_emb_size,
+            input_size=self.rule_emb_size * 2 + self.enc_recurrent_size
+            + self.recurrent_size + self.node_emb_size,
             hidden_size=self.recurrent_size,
-            dropout=dropout)
+            dropout=dropout,
+        )
 
         self.attn_type = desc_attn
         if desc_attn == 'bahdanau':
             self.desc_attn = attention.BahdanauAttention(
                 query_size=self.recurrent_size,
                 value_size=self.enc_recurrent_size,
-                proj_size=50)
+                proj_size=50,
+            )
         elif desc_attn == 'mha':
             self.desc_attn = attention.MultiHeadedAttention(
                 h=8,
                 query_size=self.recurrent_size,
-                value_size=self.enc_recurrent_size)
+                value_size=self.enc_recurrent_size,
+            )
         elif desc_attn == 'mha-1h':
             self.desc_attn = attention.MultiHeadedAttention(
                 h=1,
                 query_size=self.recurrent_size,
-                value_size=self.enc_recurrent_size)
+                value_size=self.enc_recurrent_size,
+            )
         elif desc_attn == 'sep':
             self.question_attn = attention.MultiHeadedAttention(
                 h=1,
                 query_size=self.recurrent_size,
-                value_size=self.enc_recurrent_size)
+                value_size=self.enc_recurrent_size,
+            )
             self.schema_attn = attention.MultiHeadedAttention(
                 h=1,
                 query_size=self.recurrent_size,
-                value_size=self.enc_recurrent_size)
+                value_size=self.enc_recurrent_size,
+            )
         else:
             # TODO: Figure out how to get right sizes (query, value) to module
             self.desc_attn = desc_attn
@@ -401,67 +440,84 @@ class NL2CodeDecoder(torch.nn.Module):
         self.rule_logits = torch.nn.Sequential(
             torch.nn.Linear(self.recurrent_size, self.rule_emb_size),
             torch.nn.Tanh(),
-            torch.nn.Linear(self.rule_emb_size, len(self.rules_index)))
+            torch.nn.Linear(self.rule_emb_size, len(self.rules_index)),
+        )
         self.rule_embedding = torch.nn.Embedding(
             num_embeddings=len(self.rules_index),
-            embedding_dim=self.rule_emb_size)
+            embedding_dim=self.rule_emb_size,
+        )
 
         self.gen_logodds = torch.nn.Linear(self.recurrent_size, 1)
         self.terminal_logits = torch.nn.Sequential(
             torch.nn.Linear(self.recurrent_size, self.rule_emb_size),
             torch.nn.Tanh(),
-            torch.nn.Linear(self.rule_emb_size, len(self.terminal_vocab)))
+            torch.nn.Linear(self.rule_emb_size, len(self.terminal_vocab)),
+        )
         self.terminal_embedding = torch.nn.Embedding(
             num_embeddings=len(self.terminal_vocab),
-            embedding_dim=self.rule_emb_size)
+            embedding_dim=self.rule_emb_size,
+        )
         if copy_pointer is None:
             self.copy_pointer = attention.BahdanauPointer(
                 query_size=self.recurrent_size,
                 key_size=self.enc_recurrent_size,
-                proj_size=50)
+                proj_size=50,
+            )
         else:
             # TODO: Figure out how to get right sizes (query, key) to module
             self.copy_pointer = copy_pointer
         if multi_loss_type == 'logsumexp':
-            self.multi_loss_reduction = lambda logprobs: -torch.logsumexp(logprobs, dim=1)
+            self.multi_loss_reduction = lambda logprobs: - \
+                torch.logsumexp(logprobs, dim=1)
         elif multi_loss_type == 'mean':
-            self.multi_loss_reduction = lambda logprobs: -torch.mean(logprobs, dim=1)
+            self.multi_loss_reduction = lambda logprobs: - \
+                torch.mean(logprobs, dim=1)
 
         self.pointers = torch.nn.ModuleDict()
         self.pointer_action_emb_proj = torch.nn.ModuleDict()
         for pointer_type in self.preproc.grammar.pointers:
             self.pointers[pointer_type] = attention.ScaledDotProductPointer(
                 query_size=self.recurrent_size,
-                key_size=self.enc_recurrent_size)
+                key_size=self.enc_recurrent_size,
+            )
             self.pointer_action_emb_proj[pointer_type] = torch.nn.Linear(
-                self.enc_recurrent_size, self.rule_emb_size)
+                self.enc_recurrent_size, self.rule_emb_size,
+            )
 
         self.node_type_embedding = torch.nn.Embedding(
             num_embeddings=len(self.node_type_vocab),
-            embedding_dim=self.node_emb_size)
+            embedding_dim=self.node_emb_size,
+        )
 
         # TODO batching
-        self.zero_rule_emb = torch.zeros(1, self.rule_emb_size, device=self._device)
-        self.zero_recurrent_emb = torch.zeros(1, self.recurrent_size, device=self._device)
-        if loss_type == "softmax":
+        self.zero_rule_emb = torch.zeros(
+            1, self.rule_emb_size, device=self._device,
+        )
+        self.zero_recurrent_emb = torch.zeros(
+            1, self.recurrent_size, device=self._device,
+        )
+        if loss_type == 'softmax':
             self.xent_loss = torch.nn.CrossEntropyLoss(reduction='none')
-        elif loss_type == "entmax":
+        elif loss_type == 'entmax':
             self.xent_loss = entmax.entmax15_loss
-        elif loss_type == "sparsemax":
+        elif loss_type == 'sparsemax':
             self.xent_loss = entmax.sparsemax_loss
-        elif loss_type == "label_smooth":
+        elif loss_type == 'label_smooth':
             self.xent_loss = self.label_smooth_loss
 
     def label_smooth_loss(self, X, target, smooth_value=0.1):
         if self.training:
             logits = torch.log_softmax(X, dim=1)
             size = X.size()[1]
-            one_hot = torch.full(X.size(), smooth_value / (size - 1)).to(X.device)
+            one_hot = torch.full(
+                X.size(), smooth_value
+                / (size - 1),
+            ).to(X.device)
             one_hot.scatter_(1, target.unsqueeze(0), 1 - smooth_value)
-            loss = F.kl_div(logits, one_hot, reduction="batchmean")
+            loss = F.kl_div(logits, one_hot, reduction='batchmean')
             return loss.unsqueeze(0)
         else:
-            return torch.nn.functional.cross_entropy(X, target, reduction="none")
+            return torch.nn.functional.cross_entropy(X, target, reduction='none')
 
     @classmethod
     def _calculate_rules(cls, preproc):
@@ -491,7 +547,10 @@ class NL2CodeDecoder(torch.nn.Module):
             assert name not in rules_mask
             rules_mask[name] = (offset, offset + len(field_presence_infos))
             offset += len(field_presence_infos)
-            all_rules += [(name, presence) for presence in field_presence_infos]
+            all_rules += [
+                (name, presence)
+                for presence in field_presence_infos
+            ]
 
         # Rules of the form:
         # stmt* -> stmt
@@ -507,9 +566,13 @@ class NL2CodeDecoder(torch.nn.Module):
 
     def compute_loss(self, enc_input, example, desc_enc, debug):
         if not (self.enumerate_order and self.training):
-            mle_loss = self.compute_mle_loss(enc_input, example, desc_enc, debug)
+            mle_loss = self.compute_mle_loss(
+                enc_input, example, desc_enc, debug,
+            )
         else:
-            mle_loss = self.compute_loss_from_all_ordering(enc_input, example, desc_enc, debug)
+            mle_loss = self.compute_loss_from_all_ordering(
+                enc_input, example, desc_enc, debug,
+            )
 
         if self.use_align_loss:
             align_loss = self.compute_align_loss(desc_enc, example)
@@ -570,7 +633,7 @@ class NL2CodeDecoder(torch.nn.Module):
             TreeState(
                 node=example.tree,
                 parent_field_type=self.preproc.grammar.root_type,
-            )
+            ),
         ]
         while queue:
             item = queue.pop()
@@ -592,7 +655,8 @@ class NL2CodeDecoder(torch.nn.Module):
                         TreeState(
                             node=elem,
                             parent_field_type=parent_field_type,
-                        ))
+                        ),
+                    )
                 continue
 
             if parent_field_type in self.preproc.grammar.pointers:
@@ -604,15 +668,24 @@ class NL2CodeDecoder(torch.nn.Module):
                     if self.sup_att == '1h':
                         if len(pointer_map) == len(enc_input['columns']):
                             if self.attn_type != 'sep':
-                                traversal.step(values[0], values[1:], node + len(enc_input['question']))
+                                traversal.step(
+                                    values[0], values[1:], node
+                                    + len(enc_input['question']),
+                                )
                             else:
                                 traversal.step(values[0], values[1:], node)
                         else:
                             if self.attn_type != 'sep':
-                                traversal.step(values[0], values[1:],
-                                               node + len(enc_input['question']) + len(enc_input['columns']))
+                                traversal.step(
+                                    values[0], values[1:],
+                                    node + len(enc_input['question'])
+                                    + len(enc_input['columns']),
+                                )
                             else:
-                                traversal.step(values[0], values[1:], node + len(enc_input['columns']))
+                                traversal.step(
+                                    values[0], values[1:], node
+                                    + len(enc_input['columns']),
+                                )
                     else:
                         traversal.step(values[0], values[1:])
                 else:
@@ -624,9 +697,9 @@ class NL2CodeDecoder(torch.nn.Module):
                 # - could be bytes, str, int, float, bool, NoneType
                 # - terminal tokens vocabulary is created by turning everything into a string (with `str`)
                 # - at decoding time, cast back to str/int/float/bool
-                field_type = type(node).__name__
                 field_value_split = self.preproc.grammar.tokenize_field_value(node) + [
-                    vocab.EOS]
+                    vocab.EOS,
+                ]
 
                 for token in field_value_split:
                     assert traversal.cur_item.state == TreeTraversal.State.GEN_TOKEN
@@ -642,13 +715,16 @@ class NL2CodeDecoder(torch.nn.Module):
                 assert traversal.cur_item.state == TreeTraversal.State.SUM_TYPE_APPLY
                 extra_rules = [
                     self.rules_index[parent_field_type, extra_type]
-                    for extra_type in node.get('_extra_types', [])]
+                    for extra_type in node.get('_extra_types', [])
+                ]
                 traversal.step(rule_idx, extra_rules)
 
             if type_info.fields:
                 # ApplyRule, like Call -> expr[func] expr*[args] keyword*[keywords]
                 # Figure out which rule needs to be applied
-                present = get_field_presence_info(self.ast_wrapper, node, type_info.fields)
+                present = get_field_presence_info(
+                    self.ast_wrapper, node, type_info.fields,
+                )
                 rule = (node['_type'], tuple(present))
                 rule_idx = self.rules_index[rule]
                 assert traversal.cur_item.state == TreeTraversal.State.CHILDREN_APPLY
@@ -663,7 +739,8 @@ class NL2CodeDecoder(torch.nn.Module):
                     TreeState(
                         node=node[field_info.name],
                         parent_field_type=field_info.type,
-                    ))
+                    ),
+                )
 
         loss = torch.sum(torch.stack(tuple(traversal.loss), dim=0), dim=0)
         if debug:
@@ -684,8 +761,12 @@ class NL2CodeDecoder(torch.nn.Module):
         if self.attn_type != 'sep':
             return self.desc_attn(query, desc_enc.memory, attn_mask=None)
         else:
-            question_context, question_attention_logits = self.question_attn(query, desc_enc.question_memory)
-            schema_context, schema_attention_logits = self.schema_attn(query, desc_enc.schema_memory)
+            question_context, question_attention_logits = self.question_attn(
+                query, desc_enc.question_memory,
+            )
+            schema_context, schema_attention_logits = self.schema_attn(
+                query, desc_enc.schema_memory,
+            )
             return question_context + schema_context, schema_attention_logits
 
     def _tensor(self, data, dtype=None):
@@ -701,12 +782,16 @@ class NL2CodeDecoder(torch.nn.Module):
             prev_action_emb,
             parent_h,
             parent_action_emb,
-            desc_enc):
+            desc_enc,
+    ):
         # desc_context shape: batch (=1) x emb_size
-        desc_context, attention_logits = self._desc_attention(prev_state, desc_enc)
+        desc_context, attention_logits = self._desc_attention(
+            prev_state, desc_enc,
+        )
         # node_type_emb shape: batch (=1) x emb_size
         node_type_emb = self.node_type_embedding(
-            self._index(self.node_type_vocab, node_type))
+            self._index(self.node_type_vocab, node_type),
+        )
 
         state_input = torch.cat(
             (
@@ -716,10 +801,12 @@ class NL2CodeDecoder(torch.nn.Module):
                 parent_action_emb,  # a_{p_t}: rule_emb_size
                 node_type_emb,  # n_{f-t}: node_emb_size
             ),
-            dim=-1)
+            dim=-1,
+        )
         new_state = self.state_update(
             # state_input shape: batch (=1) x (emb_size * 5)
-            state_input, prev_state)
+            state_input, prev_state,
+        )
         return new_state, attention_logits
 
     def apply_rule(
@@ -729,9 +816,11 @@ class NL2CodeDecoder(torch.nn.Module):
             prev_action_emb,
             parent_h,
             parent_action_emb,
-            desc_enc):
+            desc_enc,
+    ):
         new_state, attention_logits = self._update_state(
-            node_type, prev_state, prev_action_emb, parent_h, parent_action_emb, desc_enc)
+            node_type, prev_state, prev_action_emb, parent_h, parent_action_emb, desc_enc,
+        )
         # output shape: batch (=1) x emb_size
         output = new_state[0]
         # rule_logits shape: batch (=1) x num choices
@@ -744,9 +833,12 @@ class NL2CodeDecoder(torch.nn.Module):
         rules_start, rules_end = self.preproc.rules_mask[node_type]
 
         # TODO: Mask other probabilities first?
-        return list(zip(
-            range(rules_start, rules_end),
-            rule_logprobs[0, rules_start:rules_end]))
+        return list(
+            zip(
+                range(rules_start, rules_end),
+                rule_logprobs[0, rules_start:rules_end],
+            ),
+        )
 
     def gen_token(
             self,
@@ -755,9 +847,11 @@ class NL2CodeDecoder(torch.nn.Module):
             prev_action_emb,
             parent_h,
             parent_action_emb,
-            desc_enc):
+            desc_enc,
+    ):
         new_state, attention_logits = self._update_state(
-            node_type, prev_state, prev_action_emb, parent_h, parent_action_emb, desc_enc)
+            node_type, prev_state, prev_action_emb, parent_h, parent_action_emb, desc_enc,
+        )
         # output shape: batch (=1) x emb_size
         output = new_state[0]
 
@@ -771,11 +865,11 @@ class NL2CodeDecoder(torch.nn.Module):
             output,
             gen_logodds,
             token,
-            desc_enc):
+            desc_enc,
+    ):
         # token_idx shape: batch (=1), LongTensor
         token_idx = self._index(self.terminal_vocab, token)
         # action_emb shape: batch (=1) x emb_size
-        action_emb = self.terminal_embedding(token_idx)
 
         # +unk, +in desc: copy
         # +unk, -in desc: gen (an unk token)
@@ -790,32 +884,35 @@ class NL2CodeDecoder(torch.nn.Module):
             copy_logprob = (
                 # log p(copy | output)
                 # shape: batch (=1)
-                    torch.nn.functional.logsigmoid(-gen_logodds) -
-                    # xent_loss: -log p(location | output)
-                    # TODO: sum the probability of all occurrences
-                    # shape: batch (=1)
-                    self.xent_loss(copy_loc_logits, self._tensor(desc_locs[0:1])))
+                torch.nn.functional.logsigmoid(-gen_logodds)
+                # xent_loss: -log p(location | output)
+                # TODO: sum the probability of all occurrences
+                # shape: batch (=1)
+                - self.xent_loss(copy_loc_logits, self._tensor(desc_locs[0:1]))
+            )
         else:
             copy_logprob = None
 
         # gen: ~(unk & in desc), equivalent to  ~unk | ~in desc
         if token in self.terminal_vocab or copy_logprob is None:
             token_logits = self.terminal_logits(output)
-            # shape: 
+            # shape:
             gen_logprob = (
                 # log p(gen | output)
                 # shape: batch (=1)
-                    torch.nn.functional.logsigmoid(gen_logodds) -
-                    # xent_loss: -log p(token | output)
-                    # shape: batch (=1)
-                    self.xent_loss(token_logits, token_idx))
+                torch.nn.functional.logsigmoid(gen_logodds)
+                # xent_loss: -log p(token | output)
+                # shape: batch (=1)
+                - self.xent_loss(token_logits, token_idx)
+            )
         else:
             gen_logprob = None
 
         # loss should be -log p(...), so negate
         loss_piece = -torch.logsumexp(
             maybe_stack([copy_logprob, gen_logprob], dim=1),
-            dim=1)
+            dim=1,
+        )
         return loss_piece
 
     def token_infer(self, output, gen_logodds, desc_enc):
@@ -826,7 +923,9 @@ class NL2CodeDecoder(torch.nn.Module):
         copy_loc_logits = self.copy_pointer(output, desc_enc.memory)
         # log p(loc_i | copy, output)
         # shape: batch (=1) x seq length
-        copy_loc_logprobs = torch.nn.functional.log_softmax(copy_loc_logits, dim=-1)
+        copy_loc_logprobs = torch.nn.functional.log_softmax(
+            copy_loc_logits, dim=-1,
+        )
         # log p(loc_i, copy | output)
         copy_loc_logprobs += copy_logprob
 
@@ -835,7 +934,8 @@ class NL2CodeDecoder(torch.nn.Module):
         # multiple times in desc_enc.words.
         accumulate_logprobs(
             log_prob_by_word,
-            zip(desc_enc.words, copy_loc_logprobs.squeeze(0)))
+            zip(desc_enc.words, copy_loc_logprobs.squeeze(0)),
+        )
 
         # Generate tokens
         # log p(~copy | output)
@@ -851,7 +951,9 @@ class NL2CodeDecoder(torch.nn.Module):
 
         accumulate_logprobs(
             log_prob_by_word,
-            ((self.terminal_vocab[idx], token_logprobs[0, idx]) for idx in range(token_logprobs.shape[1])))
+            ((self.terminal_vocab[idx], token_logprobs[0, idx])
+             for idx in range(token_logprobs.shape[1])),
+        )
 
         return list(log_prob_by_word.items())
 
@@ -862,20 +964,26 @@ class NL2CodeDecoder(torch.nn.Module):
             prev_action_emb,
             parent_h,
             parent_action_emb,
-            desc_enc):
+            desc_enc,
+    ):
         new_state, attention_logits = self._update_state(
-            node_type, prev_state, prev_action_emb, parent_h, parent_action_emb, desc_enc)
+            node_type, prev_state, prev_action_emb, parent_h, parent_action_emb, desc_enc,
+        )
         # output shape: batch (=1) x emb_size
         output = new_state[0]
         # pointer_logits shape: batch (=1) x num choices
         pointer_logits = self.pointers[node_type](
-            output, desc_enc.pointer_memories[node_type])
+            output, desc_enc.pointer_memories[node_type],
+        )
 
         return output, new_state, pointer_logits, attention_logits
 
     def pointer_infer(self, node_type, logits):
         logprobs = torch.nn.functional.log_softmax(logits, dim=-1)
-        return list(zip(
-            # TODO batching
-            range(logits.shape[1]),
-            logprobs[0]))
+        return list(
+            zip(
+                # TODO batching
+                range(logits.shape[1]),
+                logprobs[0],
+            ),
+        )

@@ -19,4 +19,3 @@ def tuplify(x):
     if not isinstance(x, (tuple, list)):
         return x
     return tuple(tuplify(elem) for elem in x)
-

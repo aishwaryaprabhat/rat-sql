@@ -74,7 +74,7 @@ module Spider
       col_unit* group_by,
       order_by? order_by,
       cond? having,
-      int? limit, 
+      int? limit,
       sql? intersect,
       sql? except,
       sql? union,
