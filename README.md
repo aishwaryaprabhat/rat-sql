@@ -115,6 +115,10 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 docker build -t ratsql . -t aishpra/ratsql
 docker run -p 5000:5000 --rm -m4g -v /Users/aish/Documents/repos/RATSQL/data:/mnt/data -it aishpra/ratsql
 python run.py preprocess experiments/wikisql-glove-run.jsonnet
-python run.py train experiments/wikisql-glove-run.jsonnet
-./run_mlflow.sh
+
+export PYTHONPATH="/home/aishwaryaprabhat/rat-sql/third_party/wikisql/:${PYTHONPATH}"
+python run.py train experiments/spider-bert-run.jsonnet
+
+
+
 ```

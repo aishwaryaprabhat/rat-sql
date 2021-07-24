@@ -27,9 +27,6 @@ from ratsql.utils import saver as saver_mod
 # noinspection PyUnresolvedReferences
 from ratsql.utils import vocab
 
-import mlflow.pytorch
-from mlflow.tracking import MlflowClient
-
 
 @attr.s
 class TrainConfig:
@@ -85,6 +82,7 @@ class Trainer:
         else:
             self.device = torch.device('cpu')
 
+        print("Using ", self.device)
         self.logger = logger
         self.train_config = registry.instantiate(TrainConfig, config['train'])
         self.data_random = random_state.RandomContext(self.train_config.data_seed)
@@ -108,33 +106,32 @@ class Trainer:
     def train(self, config, modeldir):
         # slight difference here vs. unrefactored train: The init_random starts over here.
         # Could be fixed if it was important by saving random state at end of init
-        mlflow.pytorch.autolog(log_models=False)
-        with mlflow.start_run() as run:
-            with self.init_random:
+
+        with self.init_random:
                 # We may be able to move optimizer and lr_scheduler to __init__ instead. Empirically it works fine. I think that's because saver.restore 
                 # resets the state by calling optimizer.load_state_dict. 
                 # But, if there is no saved file yet, I think this is not true, so might need to reset the optimizer manually?
                 # For now, just creating it from scratch each time is safer and appears to be the same speed, but also means you have to pass in the config to train which is kind of ugly.
 
-                # TODO: not nice
-                if config["optimizer"].get("name", None) == 'bertAdamw':
-                    bert_params = list(self.model.encoder.bert_model.parameters())
-                    assert len(bert_params) > 0
-                    non_bert_params = []
-                    for name, _param in self.model.named_parameters():
-                        if "bert" not in name:
-                            non_bert_params.append(_param)
-                    assert len(non_bert_params) + len(bert_params) == len(list(self.model.parameters()))
+            # TODO: not nice
+            if config["optimizer"].get("name", None) == 'bertAdamw':
+                bert_params = list(self.model.encoder.bert_model.parameters())
+                assert len(bert_params) > 0
+                non_bert_params = []
+                for name, _param in self.model.named_parameters():
+                    if "bert" not in name:
+                        non_bert_params.append(_param)
+                assert len(non_bert_params) + len(bert_params) == len(list(self.model.parameters()))
 
-                    optimizer = registry.construct('optimizer', config['optimizer'], non_bert_params=non_bert_params,
+                optimizer = registry.construct('optimizer', config['optimizer'], non_bert_params=non_bert_params,
                                                 bert_params=bert_params)
-                    lr_scheduler = registry.construct('lr_scheduler',
+                lr_scheduler = registry.construct('lr_scheduler',
                                                     config.get('lr_scheduler', {'name': 'noop'}),
                                                     param_groups=[optimizer.non_bert_param_group,
                                                                     optimizer.bert_param_group])
-                else:
-                    optimizer = registry.construct('optimizer', config['optimizer'], params=self.model.parameters())
-                    lr_scheduler = registry.construct('lr_scheduler',
+            else:
+                optimizer = registry.construct('optimizer', config['optimizer'], params=self.model.parameters())
+                lr_scheduler = registry.construct('lr_scheduler',
                                                     config.get('lr_scheduler', {'name': 'noop'}),
                                                     param_groups=optimizer.param_groups)
 
@@ -208,7 +205,6 @@ class Trainer:
                         optimizer.zero_grad()
 
                     # Report metrics
-                    mlflow.log_metric("loss", loss.item(), step=last_step)
                     if last_step % self.train_config.report_every_n == 0:
                         self.logger.log(f'Step {last_step}: loss={loss.item():.4f}')
 
