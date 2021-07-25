@@ -135,7 +135,6 @@ third_party/wikisql/data
 rat_venv
 
 data
-mlruns
 
 
 configs_experiments_ratsql_distilbert (1).zip

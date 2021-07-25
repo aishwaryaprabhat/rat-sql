@@ -32,7 +32,8 @@ class Inferer:
         else:
             self.device = torch.device('cpu')
             torch.set_num_threads(1)
-
+        print("Using {} {}".format(self.device, torch.cuda.get_device_name(0)))
+        
         # 0. Construct preprocessors
         self.model_preproc = registry.instantiate(
             registry.lookup('model', config['model']).Preproc,

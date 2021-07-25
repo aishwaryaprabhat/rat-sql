@@ -26,12 +26,12 @@ from ratsql.utils import saver as saver_mod
 
 # noinspection PyUnresolvedReferences
 from ratsql.utils import vocab
-
+import mlflow
 
 @attr.s
 class TrainConfig:
     eval_every_n = attr.ib(default=100)
-    report_every_n = attr.ib(default=1)
+    report_every_n = attr.ib(default=100)
     save_every_n = attr.ib(default=100)
     keep_every_n = attr.ib(default=1000)
 
@@ -81,7 +81,7 @@ class Trainer:
             self.device = torch.device('cuda')
         else:
             self.device = torch.device('cpu')
-
+        print("Using {} {}".format(self.device, torch.cuda.get_device_name(0)))
         self.logger = logger
         self.train_config = registry.instantiate(TrainConfig, config['train'])
         self.data_random = random_state.RandomContext(self.train_config.data_seed)
@@ -171,47 +171,54 @@ class Trainer:
             collate_fn=lambda x: x)
 
         # 4. Start training loop
-        with self.data_random:
-            for batch in train_data_loader:
-                # Quit if too long
-                if last_step >= self.train_config.max_steps:
-                    break
+        if self.train_config.batch_size==2:
+            run_id = "93abfe7c30994defbfcdd9b42e10d3a7"
+        else:
+            run_id = None
+            
+        mlflow.pytorch.autolog(log_models=False)
+        with mlflow.start_run(run_id=run_id) as run:
+            with self.data_random:
+                for batch in train_data_loader:
+                    # Quit if too long
+                    if last_step >= self.train_config.max_steps:
+                        break
 
-                # Evaluate model
-                if last_step % self.train_config.eval_every_n == 0:
-                    if self.train_config.eval_on_train:
-                        self._eval_model(self.logger, self.model, last_step, train_eval_data_loader, 'train',
-                                         num_eval_items=self.train_config.num_eval_items)
-                    if self.train_config.eval_on_val:
-                        self._eval_model(self.logger, self.model, last_step, val_data_loader, 'val',
-                                         num_eval_items=self.train_config.num_eval_items)
+                    # Evaluate model
+                    if last_step % self.train_config.eval_every_n == 0:
+                        if self.train_config.eval_on_train:
+                            self._eval_model(self.logger, self.model, last_step, train_eval_data_loader, 'train',
+                                            num_eval_items=self.train_config.num_eval_items)
+                        if self.train_config.eval_on_val:
+                            self._eval_model(self.logger, self.model, last_step, val_data_loader, 'val',
+                                            num_eval_items=self.train_config.num_eval_items)
 
-                # Compute and apply gradient
-                with self.model_random:
-                    for _i in range(self.train_config.num_batch_accumulated):
-                        if _i > 0:  batch = next(train_data_loader)
-                        loss = self.model.compute_loss(batch)
-                        norm_loss = loss / self.train_config.num_batch_accumulated
-                        norm_loss.backward()
+                    # Compute and apply gradient
+                    with self.model_random:
+                        for _i in range(self.train_config.num_batch_accumulated):
+                            if _i > 0:  batch = next(train_data_loader)
+                            loss = self.model.compute_loss(batch)
+                            norm_loss = loss / self.train_config.num_batch_accumulated
+                            norm_loss.backward()
 
-                    if self.train_config.clip_grad:
-                        torch.nn.utils.clip_grad_norm_(optimizer.bert_param_group["params"], \
-                                                       self.train_config.clip_grad)
-                    optimizer.step()
-                    lr_scheduler.update_lr(last_step)
-                    optimizer.zero_grad()
+                        if self.train_config.clip_grad:
+                            torch.nn.utils.clip_grad_norm_(optimizer.bert_param_group["params"], \
+                                                        self.train_config.clip_grad)
+                        optimizer.step()
+                        lr_scheduler.update_lr(last_step)
+                        optimizer.zero_grad()
 
-                # Report metrics
-                if last_step % self.train_config.report_every_n == 0:
-                    self.logger.log(f'Step {last_step}: loss={loss.item():.4f}')
+                    # Report metrics
+                    if last_step % self.train_config.report_every_n == 0:
+                        self.logger.log(f'Step {last_step}: loss={loss.item():.4f}')
 
-                last_step += 1
-                # Run saver
-                if last_step == 1 or last_step % self.train_config.save_every_n == 0:
-                    saver.save(modeldir, last_step)
+                    last_step += 1
+                    # Run saver
+                    if last_step == 1 or last_step % self.train_config.save_every_n == 0:
+                        saver.save(modeldir, last_step)
 
-            # Save final model
-            saver.save(modeldir, last_step)
+                # Save final model
+                saver.save(modeldir, last_step)
 
     @staticmethod
     def _yield_batches_from_epochs(loader):
@@ -240,6 +247,10 @@ class Trainer:
             del stats['total']
 
         kv_stats = ", ".join(f"{k} = {v}" for k, v in stats.items())
+        
+        for k,v in stats.items():
+            mlflow.log_metric(eval_section+"_"+str(k), v, step=last_step)
+
         logger.log(f"Step {last_step} stats, {eval_section}: {kv_stats}")
 
 

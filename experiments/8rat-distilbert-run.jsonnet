@@ -3,8 +3,8 @@
     model_config: "configs/spider/nl2code-bert.jsonnet",
     model_config_args: {
         data_path: 'data/spider/',
-        bs: 2,
-        num_batch_accumulated: 12,
+        bs: 8,
+        num_batch_accumulated: 3,
         bert_version: "distilbert-base-uncased",
         summarize_header: "avg",
         use_column_type: false,
