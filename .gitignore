@@ -125,7 +125,7 @@ third_party/stanford-corenlp-full-2018-10-05/
 
 ### Logs & Experiment dirs ###
 
-logdir/
+
 ie_dirs/
 dumps/
 att_dirs/
@@ -135,7 +135,7 @@ third_party/wikisql/data
 rat_venv
 
 data
-
+*model_checkpoint*
 
 configs_experiments_ratsql_distilbert (1).zip
 third_party/stanford-corenlp-full-2018-10-05.zip
