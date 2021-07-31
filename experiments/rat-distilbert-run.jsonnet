@@ -10,7 +10,7 @@
         use_column_type: false,
         max_steps: 10000,
         num_layers: 8,
-        lr: 7.44e-4,
+        lr: 7.44e-6,
         bert_lr: 1e-5,
         att: 1,
         end_lr: 0,
@@ -28,6 +28,6 @@
     eval_output: "logdir/bert_run/ie_dirs",
     eval_beam_size: 1,
     eval_use_heuristic: true,
-    eval_steps: [8000],
+    eval_steps: [10000],
     eval_section: "val",
 }

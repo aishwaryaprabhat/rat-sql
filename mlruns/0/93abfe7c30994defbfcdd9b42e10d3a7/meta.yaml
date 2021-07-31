@@ -1,5 +1,5 @@
 artifact_uri: file:///home/aishwaryaprabhat/rat-sql/mlruns/0/93abfe7c30994defbfcdd9b42e10d3a7/artifacts
-end_time: 1627225072811
+end_time: 1627242661760
 entry_point_name: ''
 experiment_id: '0'
 lifecycle_stage: active
@@ -10,6 +10,6 @@ source_name: ''
 source_type: 4
 source_version: ''
 start_time: 1627182943356
-status: 1
+status: 3
 tags: []
 user_id: aishwaryaprabhat

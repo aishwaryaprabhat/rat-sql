@@ -171,13 +171,10 @@ class Trainer:
             collate_fn=lambda x: x)
 
         # 4. Start training loop
-        if self.train_config.batch_size==2:
-            run_id = "93abfe7c30994defbfcdd9b42e10d3a7"
-        else:
-            run_id = None
+        # run_id = "63a3230021bd4468ba6127fef8bafcc8"
             
         mlflow.pytorch.autolog(log_models=False)
-        with mlflow.start_run(run_id=run_id) as run:
+        with mlflow.start_run() as run:
             with self.data_random:
                 for batch in train_data_loader:
                     # Quit if too long
